@@ -58,7 +58,8 @@ const hypertension: AssistantAnswer = {
       url: "https://www.nhlbi.nih.gov/health/high-blood-pressure",
     },
     {
-      title: "2017 ACC/AHA Guideline for the Prevention, Detection, Evaluation, and Management of High Blood Pressure in Adults",
+      title:
+        "2017 ACC/AHA Guideline for the Prevention, Detection, Evaluation, and Management of High Blood Pressure in Adults",
       organization: "American College of Cardiology / American Heart Association",
       description:
         "Clinical practice guideline that introduced the 130/80 mmHg diagnostic threshold used in much of current literature.",
@@ -133,19 +134,22 @@ const diabetesSymptoms: AssistantAnswer = {
     {
       title: "Symptoms & Causes of Diabetes",
       organization: "National Institute of Diabetes and Digestive and Kidney Diseases (NIH)",
-      description: "Reference description of symptoms, risk factors, and diagnostic testing for diabetes.",
+      description:
+        "Reference description of symptoms, risk factors, and diagnostic testing for diabetes.",
       url: "https://www.niddk.nih.gov/health-information/diabetes/overview/symptoms-causes",
     },
     {
       title: "Diabetes — Fact Sheet",
       organization: "World Health Organization",
-      description: "Global summary of diabetes types, common presentations, complications, and prevention.",
+      description:
+        "Global summary of diabetes types, common presentations, complications, and prevention.",
       url: "https://www.who.int/news-room/fact-sheets/detail/diabetes",
     },
     {
       title: "Standards of Care in Diabetes",
       organization: "American Diabetes Association",
-      description: "Annually updated clinical standards covering screening thresholds and diagnostic criteria.",
+      description:
+        "Annually updated clinical standards covering screening thresholds and diagnostic criteria.",
       url: "https://diabetesjournals.org/care",
     },
   ],
@@ -172,13 +176,15 @@ const insulinResistance: AssistantAnswer = {
     {
       title: "Insulin Resistance & Prediabetes",
       organization: "National Institute of Diabetes and Digestive and Kidney Diseases (NIH)",
-      description: "Overview of the mechanism, associated conditions, and evidence on lifestyle factors.",
+      description:
+        "Overview of the mechanism, associated conditions, and evidence on lifestyle factors.",
       url: "https://www.niddk.nih.gov/health-information/diabetes/overview/what-is-diabetes/prediabetes-insulin-resistance",
     },
     {
       title: "Metabolic Syndrome",
       organization: "National Heart, Lung, and Blood Institute (NIH)",
-      description: "Describes the cluster of metabolic findings frequently seen alongside insulin resistance.",
+      description:
+        "Describes the cluster of metabolic findings frequently seen alongside insulin resistance.",
       url: "https://www.nhlbi.nih.gov/health/metabolic-syndrome",
     },
     {
@@ -216,7 +222,8 @@ const cvdRisk: AssistantAnswer = {
     {
       title: "Understand Your Risks to Prevent a Heart Attack",
       organization: "American Heart Association",
-      description: "Plain-language breakdown of modifiable and non-modifiable cardiovascular risk factors.",
+      description:
+        "Plain-language breakdown of modifiable and non-modifiable cardiovascular risk factors.",
       url: "https://www.heart.org/en/health-topics/heart-attack/understand-your-risks-to-prevent-a-heart-attack",
     },
     {
@@ -250,7 +257,8 @@ const fallback = (question: string): AssistantAnswer => ({
     {
       title: "PubMed",
       organization: "National Library of Medicine (NIH)",
-      description: "Primary index of biomedical literature, including systematic reviews and clinical trials.",
+      description:
+        "Primary index of biomedical literature, including systematic reviews and clinical trials.",
       url: "https://pubmed.ncbi.nlm.nih.gov/",
     },
     {
@@ -271,8 +279,18 @@ const fallback = (question: string): AssistantAnswer => ({
 type Entry = { keywords: string[][]; answer: AssistantAnswer };
 
 const ENTRIES: Entry[] = [
-  { keywords: [["hypertension", "research"], ["hypertension", "current"], ["blood pressure", "research"]], answer: hypertensionResearch },
-  { keywords: [["hypertension"], ["high blood pressure"], ["blood pressure"]], answer: hypertension },
+  {
+    keywords: [
+      ["hypertension", "research"],
+      ["hypertension", "current"],
+      ["blood pressure", "research"],
+    ],
+    answer: hypertensionResearch,
+  },
+  {
+    keywords: [["hypertension"], ["high blood pressure"], ["blood pressure"]],
+    answer: hypertension,
+  },
   { keywords: [["insulin resistance"], ["insulin-resistance"]], answer: insulinResistance },
   { keywords: [["diabetes"], ["type 2"], ["blood sugar"]], answer: diabetesSymptoms },
   { keywords: [["cardiovascular"], ["heart disease"], ["cvd"]], answer: cvdRisk },

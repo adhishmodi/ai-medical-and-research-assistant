@@ -34,25 +34,22 @@ A general user might ask:
 
 "What are common symptoms of anemia?"
 
-
 1.3 Core user flow
 User opens application
-        ↓
+↓
 Reads application description
-        ↓
+↓
 Enters medical/research question
-        ↓
+↓
 Clicks "Ask Assistant"
-        ↓
+↓
 System processes question
-        ↓
+↓
 AI generates structured response
-        ↓
+↓
 Sources are displayed
-        ↓
+↓
 Safety/disclaimer displayed
-
-
 
 1.4 Prototype features
 
@@ -144,33 +141,31 @@ Safety
 
 This information is for educational purposes and is not a diagnosis or a substitute for professional medical advice.
 
-
 1.7 Main screen
 
 ┌──────────────────────────────────────────────────────┐
-│                                                      │
-│             AI Medical & Research Assistant          │
-│                                                      │
-│        Evidence-aware medical information            │
-│                                                      │
-│  Ask questions about diseases, symptoms, research,  │
-│  treatments, biology and medical concepts.           │
-│                                                      │
-│  ┌──────────────────────────────────────────────┐    │
-│  │ Ask a medical or research question...       │    │
-│  │                                              │    │
-│  └──────────────────────────────────────────────┘    │
-│                                                      │
-│                 [ Ask Assistant ]                    │
-│                                                      │
-│  Try asking                                         │
-│                                                      │
-│  [What is hypertension?]                             │
-│  [Explain insulin resistance]                        │
-│  [Diabetes risk factors]                             │
-│                                                      │
+│ │
+│ AI Medical & Research Assistant │
+│ │
+│ Evidence-aware medical information │
+│ │
+│ Ask questions about diseases, symptoms, research, │
+│ treatments, biology and medical concepts. │
+│ │
+│ ┌──────────────────────────────────────────────┐ │
+│ │ Ask a medical or research question... │ │
+│ │ │ │
+│ └──────────────────────────────────────────────┘ │
+│ │
+│ [ Ask Assistant ] │
+│ │
+│ Try asking │
+│ │
+│ [What is hypertension?] │
+│ [Explain insulin resistance] │
+│ [Diabetes risk factors] │
+│ │
 └──────────────────────────────────────────────────────┘
-
 
 1.8 Answer screen
 
@@ -202,10 +197,7 @@ Sources
 [Source]
 
 ⚠ Educational information only.
-  Not a diagnosis or substitute for professional care.
-
-
-
+Not a diagnosis or substitute for professional care.
 
 1.9 Error states
 
@@ -226,7 +218,6 @@ Unable to connect to the service. Please try again.
 Unsupported question
 
 Please enter a medical, biomedical, or research-related question.
-
 
 1.10 Features explicitly excluded from the first prototype
 
@@ -249,35 +240,34 @@ Personalized prescriptions
 
 These can become future versions.
 
-
 1.11 Future architecture
 
 The prototype should eventually evolve toward:
-                   User
-                     │
-                     ▼
-               Web Interface
-                     │
-                     ▼
-                API Backend
-                     │
-          ┌──────────┴──────────┐
-          │                     │
-          ▼                     ▼
-    Safety Layer          Retrieval/RAG
-                                │
-                    ┌───────────┴───────────┐
-                    │                       │
-                 PubMed                  Medical
-                 Sources                 Documents
-                    │                       │
-                    └───────────┬───────────┘
-                                ▼
-                              LLM
-                                │
-                                ▼
-                       Structured Response
-                                │
-                       ┌────────┴────────┐
-                       ▼                 ▼
-                    Answer            Sources
+User
+│
+▼
+Web Interface
+│
+▼
+API Backend
+│
+┌──────────┴──────────┐
+│ │
+▼ ▼
+Safety Layer Retrieval/RAG
+│
+┌───────────┴───────────┐
+│ │
+PubMed Medical
+Sources Documents
+│ │
+└───────────┬───────────┘
+▼
+LLM
+│
+▼
+Structured Response
+│
+┌────────┴────────┐
+▼ ▼
+Answer Sources

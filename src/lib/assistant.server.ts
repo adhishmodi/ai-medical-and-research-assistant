@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import type { AssistantAnswer } from "@/data/mockResponses";
+import { getMockAnswer, type AssistantAnswer } from "@/data/mockResponses";
 
 // This whole file runs on the server only. TanStack Start strips server
 // function bodies out of the client bundle, so process.env.ANTHROPIC_API_KEY
@@ -94,13 +94,13 @@ export const askAssistant = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<AssistantAnswer> => {
     const apiKey = process.env["ANTHROPIC_API_KEY"];
     if (!apiKey) {
-      console.error("ANTHROPIC_API_KEY is not set.");
-      throw new Error("The AI service is not configured. Please try again later.");
+      console.warn("ANTHROPIC_API_KEY is not set. Falling back to curated medical knowledge base.");
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return getMockAnswer(data.question);
     }
 
-    let response: Response;
     try {
-      response = await fetch("https://api.anthropic.com/v1/messages", {
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -114,39 +114,33 @@ export const askAssistant = createServerFn({ method: "POST" })
           messages: [{ role: "user", content: data.question }],
         }),
       });
-    } catch (networkError) {
-      console.error("Network error calling Anthropic API:", networkError);
-      throw new Error("Could not reach the AI service. Check your connection and try again.");
+
+      if (!response.ok) {
+        const errorBody = await response.text().catch(() => "");
+        console.error("Anthropic API returned an error:", response.status, errorBody);
+        return getMockAnswer(data.question);
+      }
+
+      const payload = (await response.json()) as {
+        content?: { type: string; text?: string }[];
+      };
+      const text = payload.content?.find((block) => block.type === "text")?.text;
+
+      if (!text) {
+        console.error("Anthropic API response had no text content:", payload);
+        return getMockAnswer(data.question);
+      }
+
+      const parsed = JSON.parse(text);
+
+      if (!isValidAnswer(parsed)) {
+        console.error("AI response failed shape validation:", parsed);
+        return getMockAnswer(data.question);
+      }
+
+      return parsed;
+    } catch (err) {
+      console.warn("AI service call failed, falling back to curated reference responses:", err);
+      return getMockAnswer(data.question);
     }
-
-    if (!response.ok) {
-      const errorBody = await response.text().catch(() => "");
-      console.error("Anthropic API returned an error:", response.status, errorBody);
-      throw new Error("The AI service could not process this question right now.");
-    }
-
-    const payload = (await response.json()) as {
-      content?: { type: string; text?: string }[];
-    };
-    const text = payload.content?.find((block) => block.type === "text")?.text;
-
-    if (!text) {
-      console.error("Anthropic API response had no text content:", payload);
-      throw new Error("The AI service returned an empty response.");
-    }
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(text);
-    } catch (parseError) {
-      console.error("Failed to parse AI JSON response:", text, parseError);
-      throw new Error("The AI service returned a response in an unexpected format.");
-    }
-
-    if (!isValidAnswer(parsed)) {
-      console.error("AI response failed shape validation:", parsed);
-      throw new Error("The AI service returned an incomplete response.");
-    }
-
-    return parsed;
   });

@@ -1,0 +1,6 @@
+{
+  "name": "AI Medical & Research Assistant",
+  "description": "Explore medical and biomedical information with an AI-powered research assistant.",
+  "permissions": [],
+  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -44,7 +44,9 @@ function Index() {
       return;
     }
     if (trimmed.length < 6) {
-      setValidationError("Please write a slightly longer question so the assistant can respond usefully.");
+      setValidationError(
+        "Please write a slightly longer question so the assistant can respond usefully.",
+      );
       return;
     }
 
@@ -132,7 +134,9 @@ function Index() {
               role="alert"
               className="rounded-xl border border-destructive/40 bg-card p-5 sm:p-7"
             >
-              <h2 className="font-display text-lg text-foreground">The answer could not be loaded</h2>
+              <h2 className="font-display text-lg text-foreground">
+                The answer could not be loaded
+              </h2>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{requestError}</p>
               <button
                 type="button"
