@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getMockAnswer, type AssistantAnswer } from "@/data/mockResponses";
+import { getMockAnswer, type AssistantAnswer, type Source } from "@/data/mockResponses";
 import { getOptionalProviders } from "@/lib/ai/providers.server";
 import { searchPubMed, type PubMedArticle } from "@/lib/pubmed.server";
 import { searchTrustedSources, type TrustedSource } from "@/lib/trusted-sources.server";
@@ -9,7 +9,7 @@ const BASE_SYSTEM_PROMPT = `You are the AI Medical & Research Assistant: an educ
 
 Rules: provide general educational information; do not diagnose; do not prescribe or change medicines; distinguish established evidence from uncertainty; never invent citations, studies, statistics, or URLs; recommend appropriate professional/emergency care for urgent situations; explain limitations rather than guessing.
 
-When live evidence is supplied, use it as the primary factual context. Distinguish peer-reviewed research from patient-facing health information. Do not claim that a supplied study proves more than its abstract supports. The application will attach retrieved evidence sources to the final answer. Never invent additional papers or URLs.
+When live evidence is supplied, use it as the primary factual context. Distinguish peer-reviewed research from patient-facing health information. Do not claim that a supplied study proves more than its abstract supports. The application attaches retrieved evidence sources to the final answer. Never invent additional papers or URLs.
 
 Response format: output ONLY valid JSON matching:
 {"topic":string,"summary":string,"keyInformation":string[],"considerations":string[],"whenToSeekCare":string[],"sources":[{"title":string,"organization":string,"description":string,"url":string}]}`;
@@ -26,28 +26,30 @@ type AskAssistantRequest = { question?: unknown };
 function isRequest(data: unknown): data is { question: string } { return typeof data === "object" && data !== null && typeof (data as AskAssistantRequest).question === "string"; }
 
 function buildSystemPrompt(route: QueryRoute): string {
-  if (route.safetyFirst) {
-    return `${BASE_SYSTEM_PROMPT}\n\nSAFETY-FIRST ROUTE: This query may involve an urgent situation or medication safety. Do not reassure the user that an emergency is harmless. If symptoms could represent an emergency, clearly recommend contacting local emergency services or going to the nearest emergency department. Do not provide a definitive diagnosis. For medication questions, do not give individualized dosing or tell the user to start, stop, or change a prescription. Keep urgent guidance prominent and concise.`;
-  }
-  if (route.category === "research") {
-    return `${BASE_SYSTEM_PROMPT}\n\nRESEARCH ROUTE: Prioritize the supplied PubMed evidence. Clearly distinguish study findings from general medical guidance, mention meaningful uncertainty or limitations, and avoid treating association as causation.`;
-  }
-  if (route.category === "medication") {
-    return `${BASE_SYSTEM_PROMPT}\n\nMEDICATION ROUTE: Prioritize authoritative health information and supplied research. Explain common uses, precautions, interactions, and common adverse effects at a general educational level. Do not provide individualized prescribing instructions.`;
-  }
+  if (route.safetyFirst) return `${BASE_SYSTEM_PROMPT}\n\nSAFETY-FIRST ROUTE: This query may involve an urgent situation or medication safety. Do not reassure the user that an emergency is harmless. If symptoms could represent an emergency, clearly recommend contacting local emergency services or going to the nearest emergency department. Do not provide a definitive diagnosis. For medication questions, do not give individualized dosing or tell the user to start, stop, or change a prescription. Keep urgent guidance prominent and concise.`;
+  if (route.category === "research") return `${BASE_SYSTEM_PROMPT}\n\nRESEARCH ROUTE: Prioritize the supplied PubMed evidence. Clearly distinguish study findings from general medical guidance, mention meaningful uncertainty or limitations, and avoid treating association as causation.`;
+  if (route.category === "medication") return `${BASE_SYSTEM_PROMPT}\n\nMEDICATION ROUTE: Prioritize authoritative health information and supplied research. Explain common uses, precautions, interactions, and common adverse effects at a general educational level. Do not provide individualized prescribing instructions.`;
   return BASE_SYSTEM_PROMPT;
 }
 
 function buildEvidenceContext(articles: PubMedArticle[], trusted: TrustedSource[]): string {
-  const pubmed = articles.length ? articles.map((a, i) => `${i + 1}. PMID: ${a.pmid}\nTitle: ${a.title}\nJournal: ${a.journal}\nPublication year: ${a.publicationDate}\nURL: ${a.url}\nAbstract: ${a.abstract || "Abstract unavailable."}`).join("\n\n") : "No PubMed articles were retrieved.";
+  const pubmed = articles.length ? articles.map((a, i) => `${i + 1}. PMID: ${a.pmid}\nTitle: ${a.title}\nJournal: ${a.journal}\nPublication year: ${a.publicationDate}\nStudy type: ${a.studyType}\nURL: ${a.url}\nAbstract: ${a.abstract || "Abstract unavailable."}`).join("\n\n") : "No PubMed articles were retrieved.";
   const sources = trusted.length ? trusted.map((s, i) => `${i + 1}. Organization: ${s.organization}\nTitle: ${s.title}\nURL: ${s.url}\nDescription: ${s.description}`).join("\n\n") : "No trusted patient-facing sources were retrieved.";
   return `LIVE EVIDENCE — PUBMED (${articles.length}):\n${pubmed}\n\nLIVE TRUSTED HEALTH SOURCES (${trusted.length}):\n${sources}`;
 }
 
-function mergeRetrievedSources(answer: AssistantAnswer, articles: PubMedArticle[], trusted: TrustedSource[]): AssistantAnswer {
-  const retrieved: AssistantAnswer["sources"] = [
-    ...articles.map((article) => ({ title: article.title, organization: "PubMed", description: article.abstract || `PubMed record for PMID ${article.pmid}.`, url: article.url })),
-    ...trusted.map((source) => ({ title: source.title, organization: source.organization, description: source.description, url: source.url })),
+function relevanceScore(query: string, title: string, description: string): number {
+  const terms = query.toLowerCase().split(/\W+/).filter((term) => term.length > 2);
+  const haystack = `${title} ${description}`.toLowerCase();
+  if (!terms.length) return 0;
+  const hits = terms.reduce((n, term) => n + (haystack.includes(term) ? 1 : 0), 0);
+  return Math.round((hits / terms.length) * 100);
+}
+
+function mergeRetrievedSources(answer: AssistantAnswer, articles: PubMedArticle[], trusted: TrustedSource[], question: string): AssistantAnswer {
+  const retrieved: Source[] = [
+    ...articles.map((article) => ({ title: article.title, organization: "PubMed", description: article.abstract || `PubMed record for PMID ${article.pmid}.`, url: article.url, category: "research" as const, publicationYear: article.publicationDate || undefined, studyType: article.studyType, relevance: relevanceScore(question, article.title, article.abstract) })),
+    ...trusted.map((source) => ({ title: source.title, organization: source.organization, description: source.description, url: source.url, category: "guidance" as const, studyType: "Authoritative health guidance", relevance: relevanceScore(question, source.title, source.description) })),
   ];
   const seen = new Set<string>();
   const sources = [...retrieved, ...answer.sources].filter((source) => {
@@ -62,34 +64,26 @@ export const askAssistant = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<AssistantAnswer> => {
     const route = classifyQuery(data.question);
     console.info(`Query route: ${route.category}; PubMed=${route.usePubMed}; trusted=${route.useTrustedSources}; reason=${route.reason}`);
-
     let evidence: PubMedArticle[] = [];
     let trusted: TrustedSource[] = [];
-
     if (route.usePubMed) {
       try { evidence = await searchPubMed(data.question, route.pubMedLimit); console.info(`PubMed retrieved ${evidence.length} article(s).`); }
       catch (error) { console.warn("PubMed retrieval unavailable; continuing without it.", error); }
-    } else {
-      console.info("PubMed skipped by query router.");
-    }
-
+    } else console.info("PubMed skipped by query router.");
     if (route.useTrustedSources) {
       trusted = await searchTrustedSources(data.question, route.trustedLimit);
       console.info(`Trusted health sources retrieved ${trusted.length} source(s).`);
-    } else {
-      console.info("Trusted health sources skipped by query router.");
-    }
+    } else console.info("Trusted health sources skipped by query router.");
 
     const providers = getOptionalProviders(RESPONSE_SCHEMA);
     if (providers.length === 0) return getMockAnswer(data.question);
-
     const groundedQuestion = `${data.question}\n\nQUERY ROUTE: ${route.category}\n\n${buildEvidenceContext(evidence, trusted)}`;
     const systemPrompt = buildSystemPrompt(route);
     for (const provider of providers) {
       try {
         const answer = await provider.generate(groundedQuestion, systemPrompt);
         if (isValidAnswer(answer)) {
-          const groundedAnswer = mergeRetrievedSources(answer, evidence, trusted);
+          const groundedAnswer = mergeRetrievedSources(answer, evidence, trusted, data.question);
           console.info(`AI response generated by ${provider.label} using ${evidence.length} PubMed article(s) and ${trusted.length} trusted source(s); displaying ${groundedAnswer.sources.length} source(s).`);
           return groundedAnswer;
         }
