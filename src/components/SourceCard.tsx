@@ -1,9 +1,17 @@
 import type { Source } from "@/data/mockResponses";
 
-type EvidenceSource = Source & { category?: "research" | "guidance"; publicationYear?: string; studyType?: string; relevance?: number };
+type EvidenceSource = Source & { category?: "research" | "guidance"; publicationYear?: string; studyType?: string; evidenceLevel?: "high" | "moderate" | "limited" | "not_applicable"; relevance?: number };
+
+const levelLabel: Record<NonNullable<EvidenceSource["evidenceLevel"]>, string> = {
+  high: "Evidence type: higher-level synthesis / controlled evidence",
+  moderate: "Evidence type: observational or review evidence",
+  limited: "Evidence type: limited / early evidence",
+  not_applicable: "Authoritative health guidance",
+};
 
 export function SourceCard({ source }: { source: Source }) {
   const evidence = source as EvidenceSource;
+  const level = evidence.evidenceLevel;
   return <article className="rounded-lg border border-border bg-background p-4 transition-colors hover:bg-surface">
     <div className="flex flex-wrap items-center gap-2">
       {evidence.category ? <span className="rounded-full border border-border px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-wide text-muted-foreground">{evidence.category === "research" ? "Research evidence" : "Health guidance"}</span> : null}
@@ -20,6 +28,7 @@ export function SourceCard({ source }: { source: Source }) {
       {evidence.publicationYear ? <span>Published {evidence.publicationYear}</span> : null}
       {evidence.studyType ? <span>{evidence.studyType}</span> : null}
     </div>
+    {level ? <p className="mt-2 text-xs font-medium text-muted-foreground">{levelLabel[level]}</p> : null}
     <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{source.description}</p>
     {!source.url ? <span className="mt-3 block text-xs text-muted-foreground">No public link available</span> : null}
   </article>;
