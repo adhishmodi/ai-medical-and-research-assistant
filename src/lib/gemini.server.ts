@@ -1,29 +1,31 @@
 import type { AssistantAnswer } from "@/data/mockResponses";
 
-type GeminiPart = { text?: string };
-type GeminiResponse = {
-  candidates?: Array<{
-    content?: { parts?: GeminiPart[] };
+type GeminiInteractionResponse = {
+  output_text?: string;
+  status?: string;
+  steps?: Array<{
+    type?: string;
+    content?: Array<{ type?: string; text?: string }>;
   }>;
 };
 
 const RESPONSE_SCHEMA = {
-  type: "OBJECT",
+  type: "object",
   properties: {
-    topic: { type: "STRING" },
-    summary: { type: "STRING" },
-    keyInformation: { type: "ARRAY", items: { type: "STRING" } },
-    considerations: { type: "ARRAY", items: { type: "STRING" } },
-    whenToSeekCare: { type: "ARRAY", items: { type: "STRING" } },
+    topic: { type: "string" },
+    summary: { type: "string" },
+    keyInformation: { type: "array", items: { type: "string" } },
+    considerations: { type: "array", items: { type: "string" } },
+    whenToSeekCare: { type: "array", items: { type: "string" } },
     sources: {
-      type: "ARRAY",
+      type: "array",
       items: {
-        type: "OBJECT",
+        type: "object",
         properties: {
-          title: { type: "STRING" },
-          organization: { type: "STRING" },
-          description: { type: "STRING" },
-          url: { type: "STRING" },
+          title: { type: "string" },
+          organization: { type: "string" },
+          description: { type: "string" },
+          url: { type: "string" },
         },
         required: ["title", "organization", "description"],
       },
@@ -39,6 +41,23 @@ const RESPONSE_SCHEMA = {
   ],
 };
 
+function getOutputText(payload: GeminiInteractionResponse): string | undefined {
+  if (typeof payload.output_text === "string" && payload.output_text.trim()) {
+    return payload.output_text;
+  }
+
+  for (const step of payload.steps ?? []) {
+    if (step.type !== "model_output") continue;
+    for (const item of step.content ?? []) {
+      if (item.type === "text" && typeof item.text === "string" && item.text.trim()) {
+        return item.text;
+      }
+    }
+  }
+
+  return undefined;
+}
+
 export async function generateGeminiAnswer(
   question: string,
   systemPrompt: string,
@@ -48,40 +67,37 @@ export async function generateGeminiAnswer(
     throw new Error("GEMINI_API_KEY is not configured.");
   }
 
-  const model = process.env["GEMINI_MODEL"] || "gemini-2.5-flash";
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const model = process.env["GEMINI_MODEL"] || "gemini-3.8-flash";
+  const endpoint = "https://generativelanguage.googleapis.com/v1beta/interactions";
 
   const response = await fetch(endpoint, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
     body: JSON.stringify({
-      systemInstruction: {
-        parts: [{ text: systemPrompt }],
-      },
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: question }],
-        },
-      ],
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: RESPONSE_SCHEMA,
-        temperature: 0.2,
+      model,
+      input: question,
+      system_instruction: systemPrompt,
+      response_format: {
+        type: "text",
+        mime_type: "application/json",
+        schema: RESPONSE_SCHEMA,
       },
     }),
   });
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => "");
-    throw new Error(`Gemini API returned ${response.status}: ${errorBody}`);
+    throw new Error(`Gemini Interactions API returned ${response.status}: ${errorBody}`);
   }
 
-  const payload = (await response.json()) as GeminiResponse;
-  const text = payload.candidates?.[0]?.content?.parts?.find((part) => part.text)?.text;
+  const payload = (await response.json()) as GeminiInteractionResponse;
+  const text = getOutputText(payload);
 
   if (!text) {
-    throw new Error("Gemini API response did not contain text content.");
+    throw new Error(`Gemini Interactions API returned no model output (status: ${payload.status ?? "unknown"}).`);
   }
 
   return JSON.parse(text) as AssistantAnswer;
