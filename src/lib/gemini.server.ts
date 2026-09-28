@@ -58,19 +58,13 @@ function getOutputText(payload: GeminiInteractionResponse): string | undefined {
   return undefined;
 }
 
-export async function generateGeminiAnswer(
+async function requestGemini(
+  model: string,
   question: string,
   systemPrompt: string,
+  apiKey: string,
 ): Promise<AssistantAnswer> {
-  const apiKey = process.env["GEMINI_API_KEY"];
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is not configured.");
-  }
-
-  const model = process.env["GEMINI_MODEL"] || "gemini-3.8-flash";
-  const endpoint = "https://generativelanguage.googleapis.com/v1beta/interactions";
-
-  const response = await fetch(endpoint, {
+  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -90,7 +84,11 @@ export async function generateGeminiAnswer(
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => "");
-    throw new Error(`Gemini Interactions API returned ${response.status}: ${errorBody}`);
+    const error = new Error(`Gemini Interactions API returned ${response.status}: ${errorBody}`) as Error & {
+      status?: number;
+    };
+    error.status = response.status;
+    throw error;
   }
 
   const payload = (await response.json()) as GeminiInteractionResponse;
@@ -101,4 +99,28 @@ export async function generateGeminiAnswer(
   }
 
   return JSON.parse(text) as AssistantAnswer;
+}
+
+export async function generateGeminiAnswer(
+  question: string,
+  systemPrompt: string,
+): Promise<AssistantAnswer> {
+  const apiKey = process.env["GEMINI_API_KEY"];
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY is not configured.");
+  }
+
+  const primaryModel = process.env["GEMINI_MODEL"] || "gemini-3.8-flash";
+  const fallbackModel = process.env["GEMINI_FALLBACK_MODEL"] || "gemini-3.5-flash-lite";
+
+  try {
+    return await requestGemini(primaryModel, question, systemPrompt, apiKey);
+  } catch (error) {
+    const status = (error as { status?: number })?.status;
+    if ((status === 503 || status === 429) && fallbackModel !== primaryModel) {
+      console.warn(`${primaryModel} unavailable (${status}); trying ${fallbackModel}.`);
+      return await requestGemini(fallbackModel, question, systemPrompt, apiKey);
+    }
+    throw error;
+  }
 }
