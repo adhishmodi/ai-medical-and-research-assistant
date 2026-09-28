@@ -11,6 +11,8 @@ Rules: provide general educational information; do not diagnose; do not prescrib
 
 When live evidence is supplied, use it as the primary factual context. Distinguish peer-reviewed research from patient-facing health information. Do not claim that a supplied study proves more than its abstract supports. The application attaches retrieved evidence sources to the final answer. Never invent additional papers or URLs.
 
+Evidence synthesis: discuss agreement and disagreement across retrieved studies when relevant. Treat study design as metadata, not as a universal quality ranking. Do not call an observational study causal. Mention meaningful limitations such as sample size, population, study design, follow-up, and recency when they affect interpretation.
+
 Response format: output ONLY valid JSON matching:
 {"topic":string,"summary":string,"keyInformation":string[],"considerations":string[],"whenToSeekCare":string[],"sources":[{"title":string,"organization":string,"description":string,"url":string}]}`;
 
@@ -27,7 +29,7 @@ function isRequest(data: unknown): data is { question: string } { return typeof 
 
 function buildSystemPrompt(route: QueryRoute): string {
   if (route.safetyFirst) return `${BASE_SYSTEM_PROMPT}\n\nSAFETY-FIRST ROUTE: This query may involve an urgent situation or medication safety. Do not reassure the user that an emergency is harmless. If symptoms could represent an emergency, clearly recommend contacting local emergency services or going to the nearest emergency department. Do not provide a definitive diagnosis. For medication questions, do not give individualized dosing or tell the user to start, stop, or change a prescription. Keep urgent guidance prominent and concise.`;
-  if (route.category === "research") return `${BASE_SYSTEM_PROMPT}\n\nRESEARCH ROUTE: Prioritize the supplied PubMed evidence. Clearly distinguish study findings from general medical guidance, mention meaningful uncertainty or limitations, and avoid treating association as causation.`;
+  if (route.category === "research") return `${BASE_SYSTEM_PROMPT}\n\nRESEARCH ROUTE: Prioritize the supplied PubMed evidence. Clearly distinguish study findings from general medical guidance, summarize convergence or disagreement when supported, mention meaningful limitations, and avoid treating association as causation.`;
   if (route.category === "medication") return `${BASE_SYSTEM_PROMPT}\n\nMEDICATION ROUTE: Prioritize authoritative health information and supplied research. Explain common uses, precautions, interactions, and common adverse effects at a general educational level. Do not provide individualized prescribing instructions.`;
   return BASE_SYSTEM_PROMPT;
 }
@@ -43,14 +45,28 @@ function relevanceScore(query: string, title: string, description: string): numb
   const haystack = `${title} ${description}`.toLowerCase();
   if (!terms.length) return 0;
   const hits = terms.reduce((n, term) => n + (haystack.includes(term) ? 1 : 0), 0);
-  return Math.round((hits / terms.length) * 100);
+  return Math.min(100, Math.round((hits / terms.length) * 100));
+}
+
+type EvidenceMeta = { category: "research" | "guidance"; publicationYear?: string; studyType?: string; evidenceLevel: "high" | "moderate" | "limited" | "not_applicable"; relevance: number };
+function classifyEvidence(studyType: string): { normalized: string; level: EvidenceMeta["evidenceLevel"] } {
+  const s = studyType.toLowerCase();
+  if (s.includes("meta-analysis") || s.includes("systematic review")) return { normalized: "Systematic review / meta-analysis", level: "high" };
+  if (s.includes("randomized controlled trial") || s.includes("randomised controlled trial") || s.includes("clinical trial")) return { normalized: "Randomized / controlled trial", level: "high" };
+  if (s.includes("cohort")) return { normalized: "Cohort study", level: "moderate" };
+  if (s.includes("case-control")) return { normalized: "Case-control study", level: "moderate" };
+  if (s.includes("cross-sectional")) return { normalized: "Cross-sectional study", level: "limited" };
+  if (s.includes("case report") || s.includes("case series")) return { normalized: "Case report / series", level: "limited" };
+  if (s.includes("review")) return { normalized: "Review", level: "moderate" };
+  return { normalized: studyType || "Biomedical study", level: "limited" };
 }
 
 function mergeRetrievedSources(answer: AssistantAnswer, articles: PubMedArticle[], trusted: TrustedSource[], question: string): AssistantAnswer {
-  const retrieved: Source[] = [
-    ...articles.map((article) => ({ title: article.title, organization: "PubMed", description: article.abstract || `PubMed record for PMID ${article.pmid}.`, url: article.url, category: "research" as const, publicationYear: article.publicationDate || undefined, studyType: article.studyType, relevance: relevanceScore(question, article.title, article.abstract) })),
-    ...trusted.map((source) => ({ title: source.title, organization: source.organization, description: source.description, url: source.url, category: "guidance" as const, studyType: "Authoritative health guidance", relevance: relevanceScore(question, source.title, source.description) })),
-  ];
+  const retrieved: Source[] = articles.map((article) => {
+    const classification = classifyEvidence(article.studyType);
+    return { title: article.title, organization: "PubMed", description: article.abstract || `PubMed record for PMID ${article.pmid}.`, url: article.url, category: "research" as const, publicationYear: article.publicationDate || undefined, studyType: classification.normalized, evidenceLevel: classification.level, relevance: relevanceScore(question, article.title, article.abstract) };
+  });
+  retrieved.push(...trusted.map((source) => ({ title: source.title, organization: source.organization, description: source.description, url: source.url, category: "guidance" as const, studyType: "Authoritative health guidance", evidenceLevel: "not_applicable" as const, relevance: relevanceScore(question, source.title, source.description) })));
   const seen = new Set<string>();
   const sources = [...retrieved, ...answer.sources].filter((source) => {
     if (!source.url || seen.has(source.url)) return false;
@@ -84,7 +100,9 @@ export const askAssistant = createServerFn({ method: "POST" })
         const answer = await provider.generate(groundedQuestion, systemPrompt);
         if (isValidAnswer(answer)) {
           const groundedAnswer = mergeRetrievedSources(answer, evidence, trusted, data.question);
-          console.info(`AI response generated by ${provider.label} using ${evidence.length} PubMed article(s) and ${trusted.length} trusted source(s); displaying ${groundedAnswer.sources.length} source(s).`);
+          const researchCount = groundedAnswer.sources.filter((s: any) => s.category === "research").length;
+          const guidanceCount = groundedAnswer.sources.filter((s: any) => s.category === "guidance").length;
+          console.info(`AI response generated by ${provider.label} using ${evidence.length} PubMed article(s) and ${trusted.length} trusted source(s); displaying ${groundedAnswer.sources.length} source(s) (${researchCount} research, ${guidanceCount} guidance).`);
           return groundedAnswer;
         }
         console.warn(`${provider.label} returned an invalid response shape; trying next provider.`);
