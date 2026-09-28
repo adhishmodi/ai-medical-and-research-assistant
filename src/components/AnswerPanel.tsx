@@ -10,7 +10,7 @@ function sourceCategory(source: Source): "research" | "guidance" { return (sourc
 export function AnswerPanel({ answer, question }: { answer: AssistantAnswer; question: string }) {
   const researchSources = answer.sources.filter((source) => sourceCategory(source) === "research");
   const guidanceSources = answer.sources.filter((source) => sourceCategory(source) === "guidance");
-  const renderSources = (sources: Source[]) => <div className="grid gap-3 sm:grid-cols-2">{sources.map((source, index) => <SourceCard key={`${source.url ?? source.title}-${index}`} source={source} />)}</div>;
+  const renderSources = (sources: Source[]) => <div className="space-y-2">{sources.map((source, index) => <SourceCard key={`${source.url ?? source.title}-${index}`} source={source} />)}</div>;
   return <article className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
     <header className="bg-surface px-5 py-5 sm:px-7"><p className="rule-label">Question</p><p className="mt-1.5 font-display text-xl leading-snug text-foreground sm:text-2xl">{question}</p><p className="mt-2 text-xs text-muted-foreground">Topic: {answer.topic}</p></header>
     <Section title="Summary"><p className="text-[1.02rem] leading-relaxed text-foreground">{answer.summary}</p></Section>
@@ -18,8 +18,8 @@ export function AnswerPanel({ answer, question }: { answer: AssistantAnswer; que
     <Section title="Important considerations"><BulletList items={answer.considerations} /></Section>
     {answer.whenToSeekCare && answer.whenToSeekCare.length > 0 ? <Section title="When to seek medical care"><BulletList items={answer.whenToSeekCare} /></Section> : null}
     <Section title={`Sources (${answer.sources.length})`}>
-      {researchSources.length > 0 ? <div><h4 className="mb-3 text-sm font-semibold text-foreground">Research evidence <span className="font-normal text-muted-foreground">({researchSources.length})</span></h4>{renderSources(researchSources)}</div> : null}
-      {guidanceSources.length > 0 ? <div className={researchSources.length > 0 ? "mt-6" : ""}><h4 className="mb-3 text-sm font-semibold text-foreground">Authoritative health guidance <span className="font-normal text-muted-foreground">({guidanceSources.length})</span></h4>{renderSources(guidanceSources)}</div> : null}
+      {researchSources.length > 0 ? <div><div className="mb-3 flex items-baseline justify-between gap-3"><h4 className="text-sm font-semibold text-foreground">Research evidence <span className="font-normal text-muted-foreground">({researchSources.length})</span></h4><span className="text-xs text-muted-foreground">Studies & papers</span></div>{renderSources(researchSources)}</div> : null}
+      {guidanceSources.length > 0 ? <div className={researchSources.length > 0 ? "mt-6" : ""}><div className="mb-3 flex items-baseline justify-between gap-3"><h4 className="text-sm font-semibold text-foreground">Authoritative health guidance <span className="font-normal text-muted-foreground">({guidanceSources.length})</span></h4><span className="text-xs text-muted-foreground">Clinical information</span></div>{renderSources(guidanceSources)}</div> : null}
     </Section>
     <div className="border-t border-border px-5 py-6 sm:px-7"><SafetyNotice /></div>
   </article>;
