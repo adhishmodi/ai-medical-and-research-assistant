@@ -1,9 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getMockAnswer, type AssistantAnswer } from "@/data/mockResponses";
+import { generateGeminiAnswer } from "@/lib/gemini.server";
 
-// This whole file runs on the server only. TanStack Start strips server
-// function bodies out of the client bundle, so process.env.ANTHROPIC_API_KEY
-// never reaches the browser.
+// Server-only assistant orchestration. Provider credentials never reach the browser.
 
 const SYSTEM_PROMPT = `You are the AI Medical & Research Assistant: an educational medical and biomedical research assistant embedded in a web app. Your purpose is to help students, researchers, and general users understand medical and biomedical topics — not to replace a clinician.
 
@@ -22,7 +21,7 @@ Behavior rules (follow all of these):
 
 Language: keep it understandable to students and general users — avoid unnecessary jargon, and briefly explain any technical term you must use.
 
-Response format: your answer must map onto these sections, in this order — SUMMARY, KEY INFORMATION, IMPORTANT CONSIDERATIONS, WHEN TO SEEK MEDICAL CARE, SOURCES. (A SAFETY NOTICE is appended separately by the app itself — do not write your own safety notice text.) Output ONLY valid JSON — no markdown fences, no commentary before or after — matching exactly this shape, where each field corresponds to one section above:
+Response format: your answer must map onto these sections, in this order — SUMMARY, KEY INFORMATION, IMPORTANT CONSIDERATIONS, WHEN TO SEEK MEDICAL CARE, SOURCES. Output ONLY valid JSON matching this shape:
 {
   "topic": string,
   "summary": string,
@@ -31,7 +30,7 @@ Response format: your answer must map onto these sections, in this order — SUM
   "whenToSeekCare": string[],
   "sources": [{ "title": string, "organization": string, "description": string, "url": string }]
 }
-"whenToSeekCare" should be a non-empty array whenever the topic could involve concerning or urgent symptoms (per rule 10); otherwise it may be an empty array.`;
+"whenToSeekCare" should be a non-empty array whenever the topic could involve concerning or urgent symptoms; otherwise it may be empty.`;
 
 type RawSource = {
   title?: unknown;
@@ -51,37 +50,39 @@ type RawAnswer = {
 
 function isValidSource(value: unknown): value is RawSource {
   if (!value || typeof value !== "object") return false;
-  const s = value as RawSource;
+  const source = value as RawSource;
   return (
-    typeof s.title === "string" &&
-    typeof s.organization === "string" &&
-    typeof s.description === "string"
+    typeof source.title === "string" &&
+    typeof source.organization === "string" &&
+    typeof source.description === "string"
   );
 }
 
 function isValidAnswer(value: unknown): value is AssistantAnswer {
   if (!value || typeof value !== "object") return false;
-  const v = value as RawAnswer;
-  const sourcesValid = Array.isArray(v.sources) && v.sources.every(isValidSource);
-
+  const answer = value as RawAnswer;
   return (
-    typeof v.topic === "string" &&
-    typeof v.summary === "string" &&
-    Array.isArray(v.keyInformation) &&
-    v.keyInformation.every((i) => typeof i === "string") &&
-    Array.isArray(v.considerations) &&
-    v.considerations.every((i) => typeof i === "string") &&
-    (v.whenToSeekCare === undefined ||
-      (Array.isArray(v.whenToSeekCare) && v.whenToSeekCare.every((i) => typeof i === "string"))) &&
-    sourcesValid
+    typeof answer.topic === "string" &&
+    typeof answer.summary === "string" &&
+    Array.isArray(answer.keyInformation) &&
+    answer.keyInformation.every((item) => typeof item === "string") &&
+    Array.isArray(answer.considerations) &&
+    answer.considerations.every((item) => typeof item === "string") &&
+    Array.isArray(answer.whenToSeekCare) &&
+    answer.whenToSeekCare.every((item) => typeof item === "string") &&
+    Array.isArray(answer.sources) &&
+    answer.sources.every(isValidSource)
   );
 }
 
 type AskAssistantRequest = { question?: unknown };
 
 function isAskAssistantRequest(data: unknown): data is { question: string } {
-  if (typeof data !== "object" || data === null) return false;
-  return typeof (data as AskAssistantRequest).question === "string";
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    typeof (data as AskAssistantRequest).question === "string"
+  );
 }
 
 export const askAssistant = createServerFn({ method: "POST" })
@@ -92,55 +93,13 @@ export const askAssistant = createServerFn({ method: "POST" })
     return data;
   })
   .handler(async ({ data }): Promise<AssistantAnswer> => {
-    const apiKey = process.env["ANTHROPIC_API_KEY"];
-    if (!apiKey) {
-      console.warn("ANTHROPIC_API_KEY is not set. Falling back to curated medical knowledge base.");
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      return getMockAnswer(data.question);
-    }
-
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-5",
-          max_tokens: 1200,
-          system: SYSTEM_PROMPT,
-          messages: [{ role: "user", content: data.question }],
-        }),
-      });
-
-      if (!response.ok) {
-        const errorBody = await response.text().catch(() => "");
-        console.error("Anthropic API returned an error:", response.status, errorBody);
-        return getMockAnswer(data.question);
-      }
-
-      const payload = (await response.json()) as {
-        content?: { type: string; text?: string }[];
-      };
-      const text = payload.content?.find((block) => block.type === "text")?.text;
-
-      if (!text) {
-        console.error("Anthropic API response had no text content:", payload);
-        return getMockAnswer(data.question);
-      }
-
-      const parsed = JSON.parse(text);
-
-      if (!isValidAnswer(parsed)) {
-        console.error("AI response failed shape validation:", parsed);
-        return getMockAnswer(data.question);
-      }
-
-      return parsed;
-    } catch (err) {
-      console.warn("AI service call failed, falling back to curated reference responses:", err);
+      const answer = await generateGeminiAnswer(data.question, SYSTEM_PROMPT);
+      if (isValidAnswer(answer)) return answer;
+      throw new Error("Gemini returned an invalid assistant response shape.");
+    } catch (error) {
+      console.warn("Gemini unavailable; falling back to curated medical reference responses.", error);
+      await new Promise((resolve) => setTimeout(resolve, 300));
       return getMockAnswer(data.question);
     }
   });
