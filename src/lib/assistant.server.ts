@@ -2,81 +2,53 @@ import { createServerFn } from "@tanstack/react-start";
 import { getMockAnswer, type AssistantAnswer } from "@/data/mockResponses";
 import { getOptionalProviders } from "@/lib/ai/providers.server";
 import { searchPubMed, type PubMedArticle } from "@/lib/pubmed.server";
+import { searchTrustedSources, type TrustedSource } from "@/lib/trusted-sources.server";
 
-// Server-only orchestration. Provider credentials never reach the browser.
 const SYSTEM_PROMPT = `You are the AI Medical & Research Assistant: an educational medical and biomedical research assistant. Help students, researchers, and general users understand medical and biomedical topics — not to replace a clinician.
 
 Rules: provide general educational information; do not diagnose; do not prescribe or change medicines; distinguish established evidence from uncertainty; never invent citations, studies, statistics, or URLs; recommend appropriate professional/emergency care for urgent situations; explain limitations rather than guessing.
 
-When evidence is supplied below, use it as the primary factual context. Do not claim that a supplied study proves more than its abstract supports. Only include supplied PubMed articles in SOURCES when they are relevant. Do not invent additional papers or URLs.
+When live evidence is supplied, use it as the primary factual context. Distinguish peer-reviewed research from patient-facing health information. Do not claim that a supplied study proves more than its abstract supports. Only include supplied sources in SOURCES when relevant. Never invent additional papers or URLs.
 
 Response format: output ONLY valid JSON matching:
 {"topic":string,"summary":string,"keyInformation":string[],"considerations":string[],"whenToSeekCare":string[],"sources":[{"title":string,"organization":string,"description":string,"url":string}]}`;
 
-const RESPONSE_SCHEMA = {
-  type: "object",
-  properties: {
-    topic: { type: "string" }, summary: { type: "string" },
-    keyInformation: { type: "array", items: { type: "string" } },
-    considerations: { type: "array", items: { type: "string" } },
-    whenToSeekCare: { type: "array", items: { type: "string" } },
-    sources: { type: "array", items: { type: "object", properties: { title: { type: "string" }, organization: { type: "string" }, description: { type: "string" }, url: { type: "string" } }, required: ["title", "organization", "description"] } },
-  },
-  required: ["topic", "summary", "keyInformation", "considerations", "whenToSeekCare", "sources"],
-};
+const RESPONSE_SCHEMA = { type: "object", properties: { topic: { type: "string" }, summary: { type: "string" }, keyInformation: { type: "array", items: { type: "string" } }, considerations: { type: "array", items: { type: "string" } }, whenToSeekCare: { type: "array", items: { type: "string" } }, sources: { type: "array", items: { type: "object", properties: { title: { type: "string" }, organization: { type: "string" }, description: { type: "string" }, url: { type: "string" } }, required: ["title", "organization", "description"] } } }, required: ["topic", "summary", "keyInformation", "considerations", "whenToSeekCare", "sources"] };
 
 function isValidAnswer(value: unknown): value is AssistantAnswer {
   if (!value || typeof value !== "object") return false;
   const a = value as Record<string, unknown>;
-  return typeof a.topic === "string" && typeof a.summary === "string" &&
-    Array.isArray(a.keyInformation) && a.keyInformation.every((x) => typeof x === "string") &&
-    Array.isArray(a.considerations) && a.considerations.every((x) => typeof x === "string") &&
-    Array.isArray(a.whenToSeekCare) && a.whenToSeekCare.every((x) => typeof x === "string") &&
-    Array.isArray(a.sources) && a.sources.every((x) => x && typeof x === "object" && typeof (x as any).title === "string" && typeof (x as any).organization === "string" && typeof (x as any).description === "string");
+  return typeof a.topic === "string" && typeof a.summary === "string" && Array.isArray(a.keyInformation) && a.keyInformation.every((x) => typeof x === "string") && Array.isArray(a.considerations) && a.considerations.every((x) => typeof x === "string") && Array.isArray(a.whenToSeekCare) && a.whenToSeekCare.every((x) => typeof x === "string") && Array.isArray(a.sources) && a.sources.every((x) => x && typeof x === "object" && typeof (x as any).title === "string" && typeof (x as any).organization === "string" && typeof (x as any).description === "string");
 }
 
 type AskAssistantRequest = { question?: unknown };
 function isRequest(data: unknown): data is { question: string } { return typeof data === "object" && data !== null && typeof (data as AskAssistantRequest).question === "string"; }
 
-function buildEvidenceContext(articles: PubMedArticle[]): string {
-  if (articles.length === 0) return "No PubMed articles were retrieved for this question. State that limitation rather than inventing research sources.";
-  return `PUBMED EVIDENCE RETRIEVED (${articles.length} articles):\n\n${articles.map((article, index) => `${index + 1}. PMID: ${article.pmid}\nTitle: ${article.title}\nJournal: ${article.journal}\nPublication year: ${article.publicationDate}\nURL: ${article.url}\nAbstract: ${article.abstract || "Abstract unavailable."}`).join("\n\n")}`;
+function buildEvidenceContext(articles: PubMedArticle[], trusted: TrustedSource[]): string {
+  const pubmed = articles.length ? articles.map((a, i) => `${i + 1}. PMID: ${a.pmid}\nTitle: ${a.title}\nJournal: ${a.journal}\nPublication year: ${a.publicationDate}\nURL: ${a.url}\nAbstract: ${a.abstract || "Abstract unavailable."}`).join("\n\n") : "No PubMed articles were retrieved.";
+  const sources = trusted.length ? trusted.map((s, i) => `${i + 1}. Organization: ${s.organization}\nTitle: ${s.title}\nURL: ${s.url}\nDescription: ${s.description}`).join("\n\n") : "No trusted patient-facing sources were retrieved.";
+  return `LIVE EVIDENCE — PUBMED (${articles.length}):\n${pubmed}\n\nLIVE TRUSTED HEALTH SOURCES (${trusted.length}):\n${sources}`;
 }
 
 export const askAssistant = createServerFn({ method: "POST" })
   .validator((data: unknown) => { if (!isRequest(data)) throw new Error("Invalid request payload."); return data; })
   .handler(async ({ data }): Promise<AssistantAnswer> => {
     let evidence: PubMedArticle[] = [];
-    try {
-      evidence = await searchPubMed(data.question, 5);
-      console.info(`PubMed retrieved ${evidence.length} article(s).`);
-    } catch (error) {
-      console.warn("PubMed retrieval unavailable; continuing without live research evidence.", error);
-    }
+    let trusted: TrustedSource[] = [];
+    try { evidence = await searchPubMed(data.question, 5); console.info(`PubMed retrieved ${evidence.length} article(s).`); } catch (error) { console.warn("PubMed retrieval unavailable; continuing without it.", error); }
+    trusted = await searchTrustedSources(data.question);
+    console.info(`Trusted health sources retrieved ${trusted.length} source(s).`);
 
     const providers = getOptionalProviders(RESPONSE_SCHEMA);
-    if (providers.length === 0) {
-      console.warn("No AI provider is configured; using curated medical reference responses.");
-      return getMockAnswer(data.question);
-    }
+    if (providers.length === 0) return getMockAnswer(data.question);
 
-    const evidenceContext = buildEvidenceContext(evidence);
-    const groundedQuestion = `${data.question}\n\n${evidenceContext}`;
-    const groundedSystemPrompt = `${SYSTEM_PROMPT}\n\n${evidence.length > 0 ? "The following PubMed records were retrieved live for this question:" : "Live PubMed retrieval returned no records."}`;
-
+    const groundedQuestion = `${data.question}\n\n${buildEvidenceContext(evidence, trusted)}`;
     for (const provider of providers) {
       try {
-        const answer = await provider.generate(groundedQuestion, groundedSystemPrompt);
-        if (isValidAnswer(answer)) {
-          console.info(`AI response generated by ${provider.label} using ${evidence.length} PubMed article(s).`);
-          return answer;
-        }
+        const answer = await provider.generate(groundedQuestion, SYSTEM_PROMPT);
+        if (isValidAnswer(answer)) { console.info(`AI response generated by ${provider.label} using ${evidence.length} PubMed article(s) and ${trusted.length} trusted source(s).`); return answer; }
         console.warn(`${provider.label} returned an invalid response shape; trying next provider.`);
-      } catch (error) {
-        console.warn(`${provider.label} unavailable; trying next provider.`, error);
-      }
+      } catch (error) { console.warn(`${provider.label} unavailable; trying next provider.`, error); }
     }
-
-    console.warn("All configured AI providers failed; using curated medical reference responses.");
     return getMockAnswer(data.question);
   });
