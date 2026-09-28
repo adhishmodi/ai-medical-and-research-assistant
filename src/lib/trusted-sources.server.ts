@@ -23,15 +23,16 @@ async function searchMedlinePlus(query: string, limit = 4): Promise<TrustedSourc
   });
 }
 
-async function getWhoTopics(): Promise<TrustedSource[]> {
+async function getWhoTopics(query: string, limit = 6): Promise<TrustedSource[]> {
   const response = await fetch("https://www.who.int/api/multimedias/healthtopics");
   if (!response.ok) throw new Error(`WHO health topics returned ${response.status}`);
   const payload = (await response.json()) as { value?: Array<{ Title?: string; Summary?: string; UrlName?: string; ItemDefaultUrl?: string; ExternalURL?: string }> };
-  return (payload.value ?? []).map((item) => {
+  const all = (payload.value ?? []).map((item) => {
     const title = clean(item.Title ?? "WHO Health Topic");
     const url = item.ExternalURL || item.ItemDefaultUrl || (item.UrlName ? `https://www.who.int/health-topics/${item.UrlName}` : "https://www.who.int/health-topics");
     return { title, organization: "World Health Organization", description: clean(item.Summary ?? "Official WHO health-topic information.").slice(0, 900), url };
   });
+  return deduplicateAndRank(all, query, limit);
 }
 
 function scoreSource(source: TrustedSource, query: string): number {
@@ -48,12 +49,12 @@ function deduplicateAndRank(sources: TrustedSource[], query: string, limit = 6):
   }).sort((a, b) => scoreSource(b, query) - scoreSource(a, query)).slice(0, limit);
 }
 
-export async function searchTrustedSources(question: string): Promise<TrustedSource[]> {
+export async function searchTrustedSources(question: string, limit = 6): Promise<TrustedSource[]> {
   const results: TrustedSource[] = [];
-  const [medlineResult, whoResult] = await Promise.allSettled([searchMedlinePlus(question, 4), getWhoTopics()]);
+  const [medlineResult, whoResult] = await Promise.allSettled([searchMedlinePlus(question, Math.min(4, limit)), getWhoTopics(question, Math.max(2, limit))]);
   if (medlineResult.status === "fulfilled") results.push(...medlineResult.value);
   else console.warn("MedlinePlus retrieval unavailable.", medlineResult.reason);
   if (whoResult.status === "fulfilled") results.push(...whoResult.value);
   else console.warn("WHO retrieval unavailable.", whoResult.reason);
-  return deduplicateAndRank(results, question, 6);
+  return deduplicateAndRank(results, question, limit);
 }
