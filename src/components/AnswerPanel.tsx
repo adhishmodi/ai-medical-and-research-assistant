@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { AssistantAnswer, Source } from "@/data/mockResponses";
 import { SourceCard } from "./SourceCard";
 import { EvidenceComparison } from "./EvidenceComparison";
@@ -214,6 +214,11 @@ export function AnswerPanel({ answer, question }: { answer: AssistantAnswer; que
   const [sort, setSort] = useState<SourceSort>("relevance");
   const [selectedSources, setSelectedSources] = useState<number[]>([]);
   const [isComparing, setIsComparing] = useState(false);
+
+  useEffect(() => {
+    setSelectedSources([]);
+    setIsComparing(false);
+  }, [answer]);
 
   const filteredSources = useMemo(() => {
     const matching = answer.sources.filter((source) => matchesFilter(source, filter));
