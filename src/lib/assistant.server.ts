@@ -4,6 +4,8 @@ import { getOptionalProviders } from "@/lib/ai/providers.server";
 import { searchPubMed, type PubMedArticle } from "@/lib/pubmed.server";
 import { searchTrustedSources, type TrustedSource } from "@/lib/trusted-sources.server";
 import { classifyQuery, type QueryRoute } from "@/lib/query-router.server";
+import { isRagDatabaseConfigured } from "@/lib/rag/supabase.server";
+import { indexRetrievedEvidence, retrieveRagEvidence } from "@/lib/rag/index.server";
 
 const BASE_SYSTEM_PROMPT = `You are the AI Medical & Research Assistant: an educational medical and biomedical research assistant. Help students, researchers, and general users understand medical and biomedical topics — not to replace a clinician.
 
@@ -46,29 +48,7 @@ function buildSystemPrompt(route: QueryRoute): string {
 
 function buildEvidenceContext(articles: PubMedArticle[], trusted: TrustedSource[]): string {
   const pubmed = articles.length ? articles.map((a, i) => `${i + 1}. PMID: ${a.pmid}\nTitle: ${a.title}\nJournal: ${a.journal}\nPublication year: ${a.publicationDate}\nStudy type: ${a.studyType}\nURL: ${a.url}\nAbstract: ${a.abstract || "Abstract unavailable."}`).join("\n\n") : "No PubMed articles were retrieved.";
-  const sources = trusted.length ? trusted.map((s, i) => `${i + 1}. Organization: ${s.organization}\nTitle: ${s.title}\nURL: ${s.url}\nDescription: ${s.description}`).join("\n\n") : "No trusted patient-facing sources were retrieved.";
-  return `LIVE EVIDENCE — PUBMED (${articles.length}):\n${pubmed}\n\nLIVE TRUSTED HEALTH SOURCES (${trusted.length}):\n${sources}`;
-}
-
-function relevanceScore(query: string, title: string, description: string): number {
-  const terms = query.toLowerCase().split(/\W+/).filter((term) => term.length > 2);
-  const haystack = `${title} ${description}`.toLowerCase();
-  if (!terms.length) return 0;
-  const hits = terms.reduce((n, term) => n + (haystack.includes(term) ? 1 : 0), 0);
-  return Math.min(100, Math.round((hits / terms.length) * 100));
-}
-
-type EvidenceMeta = { category: "research" | "guidance"; publicationYear?: string; studyType?: string; evidenceLevel: "high" | "moderate" | "limited" | "not_applicable"; relevance: number };
-function classifyEvidence(studyType: string): { normalized: string; level: EvidenceMeta["evidenceLevel"] } {
-  const s = studyType.toLowerCase();
-  if (s.includes("meta-analysis") || s.includes("systematic review")) return { normalized: "Systematic review / meta-analysis", level: "high" };
-  if (s.includes("randomized controlled trial") || s.includes("randomised controlled trial") || s.includes("clinical trial")) return { normalized: "Randomized / controlled trial", level: "high" };
-  if (s.includes("cohort")) return { normalized: "Cohort study", level: "moderate" };
-  if (s.includes("case-control")) return { normalized: "Case-control study", level: "moderate" };
-  if (s.includes("cross-sectional")) return { normalized: "Cross-sectional study", level: "limited" };
-  if (s.includes("case report") || s.includes("case series")) return { normalized: "Case report / series", level: "limited" };
-  if (s.includes("review")) return { normalized: "Review", level: "moderate" };
-  return { normalized: studyType || "Biomedical study", level: "limited" };
+  const sources = retrieved.filter((source) => {\n    if (!source.url) return false;\n    let normalizedUrl = source.url.trim().replace(/#.*$/, "");\n    try {\n      const parsed = new URL(normalizedUrl);\n      normalizedUrl = parsed.origin + parsed.pathname.replace(/\\/$/, "") + parsed.search;\n    } catch {\n      return false;\n    }\n    if (seen.has(normalizedUrl)) return false;\n    seen.add(normalizedUrl);\n    return true;\n  });\n  return { normalized: studyType || "Biomedical study", level: "limited" };
 }
 
 function mergeRetrievedSources(answer: AssistantAnswer, articles: PubMedArticle[], trusted: TrustedSource[], question: string): AssistantAnswer {
@@ -102,9 +82,24 @@ export const askAssistant = createServerFn({ method: "POST" })
       console.info(`Trusted health sources retrieved ${trusted.length} source(s).`);
     } else console.info("Trusted health sources skipped by query router.");
 
+    let ragEvidence: Awaited<ReturnType<typeof retrieveRagEvidence>> = [];
+    if (isRagDatabaseConfigured()) {
+      try {
+        ragEvidence = await retrieveRagEvidence(question, 8);
+        console.info(`RAG retrieved ${ragEvidence.length} semantic chunk(s).`);
+        if (ragEvidence.length === 0 && (evidence.length > 0 || trusted.length > 0)) {
+          await indexRetrievedEvidence(evidence, trusted);
+          ragEvidence = await retrieveRagEvidence(question, 8);
+          console.info(`RAG seeded and retrieved ${ragEvidence.length} semantic chunk(s).`);
+        }
+      } catch (error) {
+        console.warn("RAG retrieval unavailable; continuing with live evidence.", error);
+      }
+    }
+
     const providers = getOptionalProviders(RESPONSE_SCHEMA);
     if (providers.length === 0) return getMockAnswer(question);
-    const groundedQuestion = `${question}\n\nQUERY ROUTE: ${route.category}\n\n${buildEvidenceContext(evidence, trusted)}`;
+    const ragContext = ragEvidence.length\n      ? "\n\nSEMANTIC RAG MATCHES:\n" + ragEvidence.map((match, i) =>\n          (i + 1) + ". " + match.title + "\nSimilarity: " + match.similarity.toFixed(3) +\n          "\nSource: " + match.source_url + "\nContent: " + match.content\n        ).join("\n\n")\n      : "";\n    const groundedQuestion = `${question}\n\nQUERY ROUTE: ${route.category}\n\n${buildEvidenceContext(evidence, trusted)}${ragContext}`;
     const systemPrompt = buildSystemPrompt(route);
     for (const provider of providers) {
       try {
