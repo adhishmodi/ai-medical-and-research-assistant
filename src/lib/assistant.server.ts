@@ -21,7 +21,7 @@ const RESPONSE_SCHEMA = { type: "object", properties: { topic: { type: "string" 
 function isValidAnswer(value: unknown): value is AssistantAnswer {
   if (!value || typeof value !== "object") return false;
   const a = value as Record<string, unknown>;
-  return typeof a.topic === "string" && typeof a.summary === "string" && Array.isArray(a.keyInformation) && a.keyInformation.every((x) => typeof x === "string") && Array.isArray(a.considerations) && a.considerations.every((x) => typeof x === "string") && Array.isArray(a.whenToSeekCare) && a.whenToSeekCare.every((x) => typeof x === "string") && Array.isArray(a.sources) && a.sources.every((x) => x && typeof x === "object" && typeof (x as any).title === "string" && typeof (x as any).organization === "string" && typeof (x as any).description === "string");
+  return typeof a.topic === "string" && typeof a.summary === "string" && Array.isArray(a.keyInformation) && a.keyInformation.every((x) => typeof x === "string") && Array.isArray(a.considerations) && a.considerations.every((x) => typeof x === "string") && Array.isArray(a.whenToSeekCare) && a.whenToSeekCare.every((x) => typeof x === "string") && Array.isArray(a.sources) && a.sources.every((x) => x && typeof x === "object" && typeof (x as any).title === "string" && typeof (x as any).organization === "string" && typeof (x as any).description === "string" && typeof (x as any).url === "string");
 }
 
 type AskAssistantRequest = { question?: unknown };
@@ -104,7 +104,7 @@ export const askAssistant = createServerFn({ method: "POST" })
 
     const providers = getOptionalProviders(RESPONSE_SCHEMA);
     if (providers.length === 0) return getMockAnswer(question);
-    const groundedQuestion = `${data.question}\n\nQUERY ROUTE: ${route.category}\n\n${buildEvidenceContext(evidence, trusted)}`;
+    const groundedQuestion = `${question}\n\nQUERY ROUTE: ${route.category}\n\n${buildEvidenceContext(evidence, trusted)}`;
     const systemPrompt = buildSystemPrompt(route);
     for (const provider of providers) {
       try {
