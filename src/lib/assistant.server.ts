@@ -4,8 +4,6 @@ import { getOptionalProviders } from "@/lib/ai/providers.server";
 import { searchPubMed, type PubMedArticle } from "@/lib/pubmed.server";
 import { searchTrustedSources, type TrustedSource } from "@/lib/trusted-sources.server";
 import { classifyQuery, type QueryRoute } from "@/lib/query-router.server";
-import { isRagDatabaseConfigured } from "@/lib/rag/supabase.server";
-import { indexRetrievedEvidence, retrieveRagEvidence } from "@/lib/rag/index.server";
 
 const BASE_SYSTEM_PROMPT = `You are the AI Medical & Research Assistant: an educational medical and biomedical research assistant. Help students, researchers, and general users understand medical and biomedical topics — not to replace a clinician.
 
@@ -23,11 +21,21 @@ const RESPONSE_SCHEMA = { type: "object", properties: { topic: { type: "string" 
 function isValidAnswer(value: unknown): value is AssistantAnswer {
   if (!value || typeof value !== "object") return false;
   const a = value as Record<string, unknown>;
-  return typeof a.topic === "string" && typeof a.summary === "string" && Array.isArray(a.keyInformation) && a.keyInformation.every((x) => typeof x === "string") && Array.isArray(a.considerations) && a.considerations.every((x) => typeof x === "string") && Array.isArray(a.whenToSeekCare) && a.whenToSeekCare.every((x) => typeof x === "string") && Array.isArray(a.sources) && a.sources.every((x) => x && typeof x === "object" && typeof (x as any).title === "string" && typeof (x as any).organization === "string" && typeof (x as any).description === "string");
+  return typeof a.topic === "string" && typeof a.summary === "string" && Array.isArray(a.keyInformation) && a.keyInformation.every((x) => typeof x === "string") && Array.isArray(a.considerations) && a.considerations.every((x) => typeof x === "string") && Array.isArray(a.whenToSeekCare) && a.whenToSeekCare.every((x) => typeof x === "string") && Array.isArray(a.sources) && a.sources.every((x) => x && typeof x === "object" && typeof (x as any).title === "string" && typeof (x as any).organization === "string" && typeof (x as any).description === "string" && typeof (x as any).url === "string");
 }
 
 type AskAssistantRequest = { question?: unknown };
-function isRequest(data: unknown): data is { question: string } { return typeof data === "object" && data !== null && typeof (data as AskAssistantRequest).question === "string"; }
+const MAX_QUESTION_LENGTH = 2000;
+
+function isRequest(data: unknown): data is { question: string } {
+  if (typeof data !== "object" || data === null) return false;
+  const question = (data as AskAssistantRequest).question;
+  return typeof question === "string" && question.trim().length >= 6 && question.length <= MAX_QUESTION_LENGTH;
+}
+
+function normalizeQuestion(question: string): string {
+  return question.trim().replace(/\s+/g, " ");
+}
 
 function buildSystemPrompt(route: QueryRoute): string {
   if (route.safetyFirst) return `${BASE_SYSTEM_PROMPT}\n\nSAFETY-FIRST ROUTE: This query may involve an urgent situation or medication safety. Do not reassure the user that an emergency is harmless. If symptoms could represent an emergency, clearly recommend contacting local emergency services or going to the nearest emergency department. Do not provide a definitive diagnosis. For medication questions, do not give individualized dosing or tell the user to start, stop, or change a prescription. Keep urgent guidance prominent and concise.`;
@@ -70,35 +78,39 @@ function mergeRetrievedSources(answer: AssistantAnswer, articles: PubMedArticle[
   });
   retrieved.push(...trusted.map((source) => ({ title: source.title, organization: source.organization, description: source.description, url: source.url, category: "guidance" as const, studyType: "Authoritative health guidance", evidenceLevel: "not_applicable" as const, relevance: relevanceScore(question, source.title, source.description) })));
   const seen = new Set<string>();
-  const sources = retrieved.filter((source) => {\n    if (!source.url) return false;\n    let normalizedUrl = source.url.trim().replace(/#.*$/, "");\n    try {\n      const parsed = new URL(normalizedUrl);\n      normalizedUrl = parsed.origin + parsed.pathname.replace(/\/$/, "") + parsed.search;\n    } catch {\n      return false;\n    }\n    if (seen.has(normalizedUrl)) return false;\n    seen.add(normalizedUrl);\n    return true;\n  });
+  const sources = [...retrieved, ...answer.sources].filter((source) => {
+    if (!source.url || seen.has(source.url)) return false;
+    seen.add(source.url); return true;
+  });
   return { ...answer, sources };
 }
 
 export const askAssistant = createServerFn({ method: "POST" })
   .validator((data: unknown) => { if (!isRequest(data)) throw new Error("Invalid request payload."); return data; })
   .handler(async ({ data }): Promise<AssistantAnswer> => {
-    const route = classifyQuery(data.question);
+    const question = normalizeQuestion(data.question);
+    const route = classifyQuery(question);
     console.info(`Query route: ${route.category}; PubMed=${route.usePubMed}; trusted=${route.useTrustedSources}; reason=${route.reason}`);
     let evidence: PubMedArticle[] = [];
     let trusted: TrustedSource[] = [];
     if (route.usePubMed) {
-      try { evidence = await searchPubMed(data.question, route.pubMedLimit); console.info(`PubMed retrieved ${evidence.length} article(s).`); }
+      try { evidence = await searchPubMed(question, route.pubMedLimit); console.info(`PubMed retrieved ${evidence.length} article(s).`); }
       catch (error) { console.warn("PubMed retrieval unavailable; continuing without it.", error); }
     } else console.info("PubMed skipped by query router.");
     if (route.useTrustedSources) {
-      trusted = await searchTrustedSources(data.question, route.trustedLimit);
+      trusted = await searchTrustedSources(question, route.trustedLimit);
       console.info(`Trusted health sources retrieved ${trusted.length} source(s).`);
     } else console.info("Trusted health sources skipped by query router.");
 
-    let ragEvidence: Awaited<ReturnType<typeof retrieveRagEvidence>> = [];\n    if (isRagDatabaseConfigured()) {\n      try {\n        ragEvidence = await retrieveRagEvidence(data.question, 8);\n        console.info(`RAG retrieved ${ragEvidence.length} semantic chunk(s).`);\n        if (ragEvidence.length === 0 && (evidence.length > 0 || trusted.length > 0)) {\n          await indexRetrievedEvidence(evidence, trusted);\n          ragEvidence = await retrieveRagEvidence(data.question, 8);\n          console.info(`RAG seeded and retrieved ${ragEvidence.length} semantic chunk(s).`);\n        }\n      } catch (error) {\n        console.warn("RAG retrieval unavailable; continuing with live evidence.", error);\n      }\n    }\n\n    const providers = getOptionalProviders(RESPONSE_SCHEMA);
-    if (providers.length === 0) return getMockAnswer(data.question);
-    const ragContext = ragEvidence.length\n      ? "\n\nSEMANTIC RAG MATCHES:\n" + ragEvidence.map((match, i) =>\n          (i + 1) + ". " + match.title + "\nSimilarity: " + match.similarity.toFixed(3) +\n          "\nSource: " + match.source_url + "\nContent: " + match.content\n        ).join("\n\n")\n      : "";\n    const groundedQuestion = `${data.question}\n\nQUERY ROUTE: ${route.category}\n\n${buildEvidenceContext(evidence, trusted)}${ragContext}`;
+    const providers = getOptionalProviders(RESPONSE_SCHEMA);
+    if (providers.length === 0) return getMockAnswer(question);
+    const groundedQuestion = `${question}\n\nQUERY ROUTE: ${route.category}\n\n${buildEvidenceContext(evidence, trusted)}`;
     const systemPrompt = buildSystemPrompt(route);
     for (const provider of providers) {
       try {
         const answer = await provider.generate(groundedQuestion, systemPrompt);
         if (isValidAnswer(answer)) {
-          const groundedAnswer = mergeRetrievedSources(answer, evidence, trusted, data.question);
+          const groundedAnswer = mergeRetrievedSources(answer, evidence, trusted, question);
           const researchCount = groundedAnswer.sources.filter((s: any) => s.category === "research").length;
           const guidanceCount = groundedAnswer.sources.filter((s: any) => s.category === "guidance").length;
           console.info(`AI response generated by ${provider.label} using ${evidence.length} PubMed article(s) and ${trusted.length} trusted source(s); displaying ${groundedAnswer.sources.length} source(s) (${researchCount} research, ${guidanceCount} guidance).`);
@@ -107,5 +119,5 @@ export const askAssistant = createServerFn({ method: "POST" })
         console.warn(`${provider.label} returned an invalid response shape; trying next provider.`);
       } catch (error) { console.warn(`${provider.label} unavailable; trying next provider.`, error); }
     }
-    return getMockAnswer(data.question);
+    return getMockAnswer(question);
   });
