@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Source } from "@/data/mockResponses";
 
 type EvidenceSource = Source & { category?: "research" | "guidance"; publicationYear?: string; studyType?: string; evidenceLevel?: "high" | "moderate" | "limited" | "not_applicable"; relevance?: number };
@@ -34,6 +35,27 @@ const levelLabel: Record<NonNullable<EvidenceSource["evidenceLevel"]>, string> =
 export function SourceCard({ source }: { source: Source }) {
   const evidence = source as EvidenceSource;
   const level = evidence.evidenceLevel;
+  const [copied, setCopied] = useState(false);
+
+  const citation = [
+    source.title,
+    source.organization,
+    evidence.publicationYear ? String(evidence.publicationYear) : "",
+    source.url ?? "",
+  ]
+    .filter(Boolean)
+    .join(". ");
+
+  const handleCopyCitation = async () => {
+    try {
+      await navigator.clipboard.writeText(citation);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setCopied(false);
+    }
+  };
+
   return <article className="rounded-lg border border-border bg-background p-4 transition-colors hover:bg-surface">
     <div className="flex flex-wrap items-center gap-2">
       {evidence.category ? <span className="rounded-full border border-border px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-wide text-muted-foreground">{evidence.category === "research" ? "Research evidence" : "Health guidance"}</span> : null}
@@ -44,7 +66,17 @@ export function SourceCard({ source }: { source: Source }) {
         <h4 className="font-display text-base leading-snug font-semibold text-foreground">{source.title}</h4>
         <p className="mt-1 text-xs font-medium tracking-wide text-primary">{source.organization}</p>
       </div>
-      {source.url ? <a href={source.url} target="_blank" rel="noreferrer noopener" className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">View source <span aria-hidden>↗</span></a> : null}
+      <div className="flex shrink-0 items-center gap-2">
+        <button
+          type="button"
+          onClick={handleCopyCitation}
+          className="inline-flex items-center rounded-md border border-border px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          aria-label={copied ? "Citation copied" : "Copy citation"}
+        >
+          {copied ? "Copied" : "Copy citation"}
+        </button>
+        {source.url ? <a href={source.url} target="_blank" rel="noreferrer noopener" className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">View source <span aria-hidden>↗</span></a> : null}
+      </div>
     </div>
     <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
       {evidence.publicationYear ? <span>Published {evidence.publicationYear}</span> : null}
