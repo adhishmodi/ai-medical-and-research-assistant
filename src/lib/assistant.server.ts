@@ -4,6 +4,8 @@ import { getOptionalProviders } from "@/lib/ai/providers.server";
 import { searchPubMed, type PubMedArticle } from "@/lib/pubmed.server";
 import { searchTrustedSources, type TrustedSource } from "@/lib/trusted-sources.server";
 import { classifyQuery, type QueryRoute } from "@/lib/query-router.server";
+import { isRagDatabaseConfigured } from "@/lib/rag/supabase.server";
+import { indexRetrievedEvidence, retrieveRagEvidence } from "@/lib/rag/index.server";
 
 const BASE_SYSTEM_PROMPT = `You are the AI Medical & Research Assistant: an educational medical and biomedical research assistant. Help students, researchers, and general users understand medical and biomedical topics — not to replace a clinician.
 
@@ -68,10 +70,7 @@ function mergeRetrievedSources(answer: AssistantAnswer, articles: PubMedArticle[
   });
   retrieved.push(...trusted.map((source) => ({ title: source.title, organization: source.organization, description: source.description, url: source.url, category: "guidance" as const, studyType: "Authoritative health guidance", evidenceLevel: "not_applicable" as const, relevance: relevanceScore(question, source.title, source.description) })));
   const seen = new Set<string>();
-  const sources = [...retrieved, ...answer.sources].filter((source) => {
-    if (!source.url || seen.has(source.url)) return false;
-    seen.add(source.url); return true;
-  });
+  const sources = retrieved.filter((source) => {\n    if (!source.url) return false;\n    let normalizedUrl = source.url.trim().replace(/#.*$/, "");\n    try {\n      const parsed = new URL(normalizedUrl);\n      normalizedUrl = parsed.origin + parsed.pathname.replace(/\/$/, "") + parsed.search;\n    } catch {\n      return false;\n    }\n    if (seen.has(normalizedUrl)) return false;\n    seen.add(normalizedUrl);\n    return true;\n  });
   return { ...answer, sources };
 }
 
@@ -91,9 +90,9 @@ export const askAssistant = createServerFn({ method: "POST" })
       console.info(`Trusted health sources retrieved ${trusted.length} source(s).`);
     } else console.info("Trusted health sources skipped by query router.");
 
-    const providers = getOptionalProviders(RESPONSE_SCHEMA);
+    let ragEvidence: Awaited<ReturnType<typeof retrieveRagEvidence>> = [];\n    if (isRagDatabaseConfigured()) {\n      try {\n        ragEvidence = await retrieveRagEvidence(data.question, 8);\n        console.info(`RAG retrieved ${ragEvidence.length} semantic chunk(s).`);\n        if (ragEvidence.length === 0 && (evidence.length > 0 || trusted.length > 0)) {\n          await indexRetrievedEvidence(evidence, trusted);\n          ragEvidence = await retrieveRagEvidence(data.question, 8);\n          console.info(`RAG seeded and retrieved ${ragEvidence.length} semantic chunk(s).`);\n        }\n      } catch (error) {\n        console.warn("RAG retrieval unavailable; continuing with live evidence.", error);\n      }\n    }\n\n    const providers = getOptionalProviders(RESPONSE_SCHEMA);
     if (providers.length === 0) return getMockAnswer(data.question);
-    const groundedQuestion = `${data.question}\n\nQUERY ROUTE: ${route.category}\n\n${buildEvidenceContext(evidence, trusted)}`;
+    const ragContext = ragEvidence.length\n      ? "\n\nSEMANTIC RAG MATCHES:\n" + ragEvidence.map((match, i) =>\n          (i + 1) + ". " + match.title + "\nSimilarity: " + match.similarity.toFixed(3) +\n          "\nSource: " + match.source_url + "\nContent: " + match.content\n        ).join("\n\n")\n      : "";\n    const groundedQuestion = `${data.question}\n\nQUERY ROUTE: ${route.category}\n\n${buildEvidenceContext(evidence, trusted)}${ragContext}`;
     const systemPrompt = buildSystemPrompt(route);
     for (const provider of providers) {
       try {
