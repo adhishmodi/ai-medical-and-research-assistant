@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import type { PubMedArticle } from "@/lib/pubmed.server";
 import type { TrustedSource } from "@/lib/trusted-sources.server";
 import { embedText } from "./embeddings.server";
@@ -8,8 +7,10 @@ import {
   type RagMatch,
 } from "./supabase.server";
 
-function hashContent(value: string): string {
-  return createHash("sha256").update(value).digest("hex");
+async function hashContent(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function articleContent(article: PubMedArticle): string {
@@ -38,7 +39,7 @@ async function indexDocument(input: {
     description: input.description,
     publication_year: input.publication_year,
     study_type: input.study_type,
-    content_hash: hashContent(input.content),
+    content_hash: await hashContent(input.content),
   });
   for (const chunk of chunkText(input.content)) {
     const embedding = await embedText(chunk.content, "RETRIEVAL_DOCUMENT");
