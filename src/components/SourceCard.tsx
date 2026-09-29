@@ -2,6 +2,28 @@ import type { Source } from "@/data/mockResponses";
 
 type EvidenceSource = Source & { category?: "research" | "guidance"; publicationYear?: string; studyType?: string; evidenceLevel?: "high" | "moderate" | "limited" | "not_applicable"; relevance?: number };
 
+function cleanDescription(value: string): string {
+  const decoded = value
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#([0-9]+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&beta;/gi, "β")
+    .replace(/&alpha;/gi, "α")
+    .replace(/&gamma;/gi, "γ")
+    .replace(/&ndash;/gi, "–")
+    .replace(/&mdash;/gi, "—")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&apos;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (decoded.length <= 420) return decoded;
+
+  const sentences = decoded.match(/^.{1,420}?(?:[.!?](?:\s|$))/);
+  const shortened = sentences?.[0]?.trim() ?? decoded.slice(0, 400).trimEnd();
+  return shortened + " …";
+}
+
 const levelLabel: Record<NonNullable<EvidenceSource["evidenceLevel"]>, string> = {
   high: "Evidence type: higher-level synthesis / controlled evidence",
   moderate: "Evidence type: observational or review evidence",
@@ -29,7 +51,7 @@ export function SourceCard({ source }: { source: Source }) {
       {evidence.studyType ? <span>{evidence.studyType}</span> : null}
     </div>
     {level ? <p className="mt-2 text-xs font-medium text-muted-foreground">{levelLabel[level]}</p> : null}
-    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{source.description}</p>
+    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{cleanDescription(source.description)}</p>
     {!source.url ? <span className="mt-3 block text-xs text-muted-foreground">No public link available</span> : null}
   </article>;
 }
