@@ -1,5 +1,6 @@
 import type { AssistantAnswer } from "@/data/mockResponses";
 import type { AIProvider } from "./types";
+import { fetchWithTimeout } from "@/lib/server-fetch";
 
 async function callJsonProvider(
   url: string,
@@ -7,11 +8,11 @@ async function callJsonProvider(
   body: unknown,
   label: string,
 ): Promise<AssistantAnswer> {
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     method: "POST",
     headers: { "content-type": "application/json", ...headers },
     body: JSON.stringify(body),
-  });
+  }, 30000);
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
     throw new Error(`${label} returned ${response.status}: ${detail}`);
@@ -31,14 +32,15 @@ export function getOptionalProviders(responseSchema: unknown): AIProvider[] {
 
   if (geminiKey) {
     const gemini = async (model: string, question: string, systemPrompt: string) => {
-      const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
+      const response = await fetchWithTimeout("https://generativelanguage.googleapis.com/v1beta/interactions", {
         method: "POST",
         headers: { "content-type": "application/json", "x-goog-api-key": geminiKey },
         body: JSON.stringify({ model, input: question, system_instruction: systemPrompt, response_format: { type: "text", mime_type: "application/json", schema: responseSchema } }),
-      });
+      }, 30000);
       if (!response.ok) throw new Error(`Gemini ${model} returned ${response.status}: ${await response.text().catch(() => "")}`);
-      const payload = (await response.json()) as { output_text?: string; steps?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }> };
-      const text = payload.output_text ?? payload.steps?.flatMap((s) => s.content ?? []).find((x) => x.type === "text")?.text;
+      const payload = (await response.json()) as { status?: string; output_text?: string; steps?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }> };
+      if (payload.status && payload.status !== "completed") throw new Error(`Gemini ${model} interaction status: ${payload.status}`);
+      const text = payload.output_text ?? payload.steps?.filter((s) => s.type === "model_output").flatMap((s) => s.content ?? []).find((x) => x.type === "text")?.text;
       if (!text) throw new Error(`Gemini ${model} returned no text output.`);
       return JSON.parse(text) as AssistantAnswer;
     };
@@ -60,10 +62,10 @@ export function getOptionalProviders(responseSchema: unknown): AIProvider[] {
   if (anthropicKey) {
     providers.push({
       name: "anthropic", label: "Claude Sonnet", generate: async (question, systemPrompt) => {
-        const response = await fetch("https://api.anthropic.com/v1/messages", {
+        const response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
           method: "POST", headers: { "content-type": "application/json", "x-api-key": anthropicKey, "anthropic-version": "2023-06-01" },
           body: JSON.stringify({ model: process.env["ANTHROPIC_MODEL"] || "claude-sonnet-4-5", max_tokens: 4096, system: systemPrompt, messages: [{ role: "user", content: question }] }),
-        });
+        }, 30000);
         if (!response.ok) throw new Error(`Anthropic returned ${response.status}: ${await response.text().catch(() => "")}`);
         const payload = (await response.json()) as { content?: Array<{ text?: string }> };
         const text = payload.content?.find((x) => x.text)?.text;
