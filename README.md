@@ -1,4 +1,4 @@
-# Pixel Perfect Replica
+# AI Medical And Research Assistant
 
 Implement exactly the screenshot and nothing else
 
