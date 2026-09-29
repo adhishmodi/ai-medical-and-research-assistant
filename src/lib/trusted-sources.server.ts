@@ -6,6 +6,8 @@ export type TrustedSource = {
   category: "guidance";
 };
 
+import { fetchWithTimeout } from "@/lib/server-fetch";
+
 function clean(value: string): string { return value.replace(/\s+/g, " ").trim(); }
 function decodeHtml(value: string): string { return value.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#39;/g, "'").replace(/&quot;/g, '"'); }
 
@@ -16,7 +18,7 @@ function validHttpsUrl(url: string): boolean {
 
 async function searchMedlinePlus(query: string, limit = 4): Promise<TrustedSource[]> {
   const params = new URLSearchParams({ db: "healthTopics", term: query, retmax: String(limit), retmode: "json" });
-  const response = await fetch(`https://wsearch.nlm.nih.gov/ws/query?${params}`);
+  const response = await fetchWithTimeout(`https://wsearch.nlm.nih.gov/ws/query?${params}`, {}, 8000);
   if (!response.ok) throw new Error(`MedlinePlus search returned ${response.status}`);
   const xml = await response.text();
   const docs = [...xml.matchAll(/<document[^>]*>([\s\S]*?)<\/document>/g)].slice(0, limit);
@@ -30,7 +32,7 @@ async function searchMedlinePlus(query: string, limit = 4): Promise<TrustedSourc
 }
 
 async function getWhoTopics(query: string, limit = 6): Promise<TrustedSource[]> {
-  const response = await fetch("https://www.who.int/api/multimedias/healthtopics");
+  const response = await fetchWithTimeout("https://www.who.int/api/multimedias/healthtopics", {}, 8000);
   if (!response.ok) throw new Error(`WHO health topics returned ${response.status}`);
   const payload = (await response.json()) as { value?: Array<{ Title?: string; Summary?: string; UrlName?: string; ItemDefaultUrl?: string; ExternalURL?: string }> };
   const all = (payload.value ?? []).map((item) => {
