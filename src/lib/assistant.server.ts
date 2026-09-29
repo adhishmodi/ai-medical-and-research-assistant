@@ -34,7 +34,7 @@ function isRequest(data: unknown): data is { question: string } {
 }
 
 function normalizeQuestion(question: string): string {
-  return question.trim().replace(/\\s+/g, " ");
+  return question.trim().replace(/\s+/g, " ");
 }
 
 function buildSystemPrompt(route: QueryRoute): string {
@@ -119,5 +119,5 @@ export const askAssistant = createServerFn({ method: "POST" })
         console.warn(`${provider.label} returned an invalid response shape; trying next provider.`);
       } catch (error) { console.warn(`${provider.label} unavailable; trying next provider.`, error); }
     }
-    return getMockAnswer(data.question);
+    return getMockAnswer(question);
   });
