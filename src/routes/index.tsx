@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { AnswerPanel, AnswerSkeleton } from "@/components/AnswerPanel";
 import { QuestionForm } from "@/components/QuestionForm";
 import { ResearchHistory, useResearchHistory, type ResearchSession } from "@/components/ResearchHistory";
+import { ResearchReport } from "@/components/ResearchReport";
 import { SafetyNotice } from "@/components/SafetyNotice";
 import type { AssistantAnswer } from "@/data/mockResponses";
 import { askAssistant } from "@/lib/assistant.server";
@@ -34,6 +35,7 @@ function Index() {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [savedNotice, setSavedNotice] = useState(false);
+  const [showReport, setShowReport] = useState(false);
   const answerRef = useRef<HTMLDivElement>(null);
   const requestIdRef = useRef(0);
   const { sessions, saveSession, deleteSession, clearHistory } = useResearchHistory();
@@ -86,6 +88,7 @@ function Index() {
     setValidationError(null);
     setRequestError(null);
     setSavedNotice(false);
+    setShowReport(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -98,6 +101,7 @@ function Index() {
     setRequestError(null);
     setValidationError(null);
     setSavedNotice(true);
+    setShowReport(false);
     window.setTimeout(() => answerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
   };
 
@@ -150,6 +154,11 @@ function Index() {
           {!isLoading && !requestError && answer ? (
             <div className="space-y-3">
               <AnswerPanel answer={answer} question={askedQuestion} />
+              <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card px-5 py-4 sm:px-6">
+                <div><p className="text-sm font-medium text-foreground">Research report</p><p className="mt-0.5 text-xs text-muted-foreground">Turn this evidence set into a structured report.</p></div>
+                <button type="button" onClick={() => setShowReport((value) => !value)} className="shrink-0 rounded-lg border border-border px-4 py-2 text-sm font-semibold text-foreground hover:bg-surface">{showReport ? "Hide report" : "View report"}</button>
+              </div>
+              {showReport ? <ResearchReport question={askedQuestion} answer={answer} onClose={() => setShowReport(false)} /> : null}
               <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card px-5 py-4 sm:px-6">
                 <div>
                   <p className="text-sm font-medium text-foreground">Research session</p>
