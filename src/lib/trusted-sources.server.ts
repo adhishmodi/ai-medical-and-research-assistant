@@ -38,12 +38,14 @@ async function searchMedlinePlus(query: string, limit = 4): Promise<TrustedSourc
   const response = await fetchWithTimeout(`https://wsearch.nlm.nih.gov/ws/query?${params}`, {}, 8000);
   if (!response.ok) throw new Error(`MedlinePlus search returned ${response.status}`);
   const xml = await response.text();
-  const docs = [...xml.matchAll(/<document[^>]*>([\s\S]*?)<\/document>/g)].slice(0, limit);
+  const docs = [...xml.matchAll(/<document[^>]*>([\s\S]*?)<\\/document>/g)].slice(0, limit);
   return docs.map((match) => {
     const block = match[1];
     const rawUrl = match[0].match(/<document[^>]*\burl="([^"]+)"/)?.[1] ?? "";
-    const title = decodeHtml(clean(block.match(/<content name="title">([\s\S]*?)<\/content>/)?.[1] ?? "MedlinePlus Health Topic"));
-    const snippet = stripHtml(decodeHtml(clean(block.match(/<content name="FullSummary">([\s\S]*?)<\/content>/)?.[1] ?? block.match(/<content name="snippet">([\s\S]*?)<\/content>/)?.[1] ?? "Trusted health information from the U.S. National Library of Medicine."));
+    const title = decodeHtml(clean(block.match(/<content name="title">([\s\S]*?)<\\/content>/)?.[1] ?? "MedlinePlus Health Topic"));
+    const fullSummary = block.match(/<content name="FullSummary">([\s\S]*?)<\\/content>/)?.[1];
+    const shortSnippet = block.match(/<content name="snippet">([\s\S]*?)<\\/content>/)?.[1];
+    const snippet = stripHtml(decodeHtml(clean(fullSummary ?? shortSnippet ?? "Trusted health information from the U.S. National Library of Medicine.")));
     return {
       title,
       organization: "MedlinePlus / U.S. National Library of Medicine",
