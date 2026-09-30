@@ -3,6 +3,11 @@ export type Source = {
   organization: string;
   description: string;
   url?: string;
+  category?: "research" | "guidance";
+  publicationYear?: string;
+  studyType?: string;
+  evidenceLevel?: "high" | "moderate" | "limited" | "not_applicable";
+  relevance?: number;
 };
 
 export type AssistantAnswer = {
