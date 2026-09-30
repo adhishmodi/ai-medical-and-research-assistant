@@ -9,7 +9,8 @@ export type TrustedSource = {
 import { fetchWithTimeout } from "@/lib/server-fetch";
 
 function clean(value: string): string { return value.replace(/\s+/g, " ").trim(); }
-function decodeHtml(value: string): string { return value.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#39;/g, "'").replace(/&quot;/g, '"'); }
+function decodeHtml(value: string): string { return value.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&nbsp;/g, " "); }
+function stripHtml(value: string): string { return clean(value.replace(/<[^>]*>/g, " ")); }
 
 function normalizeTrustedUrl(url: string, organization: "who" | "medlineplus"): string {
   const value = clean(decodeHtml(url));
@@ -40,9 +41,9 @@ async function searchMedlinePlus(query: string, limit = 4): Promise<TrustedSourc
   const docs = [...xml.matchAll(/<document[^>]*>([\s\S]*?)<\/document>/g)].slice(0, limit);
   return docs.map((match) => {
     const block = match[1];
-    const rawUrl = block.match(/<document[^>]*\burl="([^"]+)"/)?.[1] ?? "";
+    const rawUrl = match[0].match(/<document[^>]*\burl="([^"]+)"/)?.[1] ?? "";
     const title = decodeHtml(clean(block.match(/<content name="title">([\s\S]*?)<\/content>/)?.[1] ?? "MedlinePlus Health Topic"));
-    const snippet = decodeHtml(clean(block.match(/<content name="FullSummary">([\s\S]*?)<\/content>/)?.[1]?.replace(/<[^>]+>/g, " ") ?? block.match(/<content name="snippet">([\s\S]*?)<\/content>/)?.[1]?.replace(/<[^>]+>/g, " ") ?? "Trusted health information from the U.S. National Library of Medicine."));
+    const snippet = stripHtml(decodeHtml(clean(block.match(/<content name="FullSummary">([\s\S]*?)<\/content>/)?.[1] ?? block.match(/<content name="snippet">([\s\S]*?)<\/content>/)?.[1] ?? "Trusted health information from the U.S. National Library of Medicine."));
     return {
       title,
       organization: "MedlinePlus / U.S. National Library of Medicine",
@@ -59,8 +60,8 @@ async function getWhoTopics(query: string, limit = 6): Promise<TrustedSource[]> 
   const payload = (await response.json()) as { value?: Array<{ Title?: string; Summary?: string; UrlName?: string; ItemDefaultUrl?: string; ExternalURL?: string }> };
   const all = (payload.value ?? []).map((item) => {
     const title = clean(item.Title ?? "WHO Health Topic");
-    const url = normalizeTrustedUrl(item.ExternalURL || item.ItemDefaultUrl || "", "who");
-    return { title, organization: "World Health Organization", description: clean(item.Summary ?? "Official WHO health-topic information.").slice(0, 900), url, category: "guidance" as const };
+    const url = normalizeTrustedUrl(item.ItemDefaultUrl || item.ExternalURL || "", "who");
+    return { title, organization: "World Health Organization", description: stripHtml(decodeHtml(item.Summary ?? "Official WHO health-topic information.")).slice(0, 900), url, category: "guidance" as const };
   }).filter((source) => Boolean(source.url));
   return deduplicateAndRank(all, query, limit);
 }
