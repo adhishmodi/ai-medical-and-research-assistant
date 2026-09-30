@@ -4,6 +4,8 @@ import { getOptionalProviders } from "@/lib/ai/providers.server";
 import { searchPubMed, type PubMedArticle } from "@/lib/pubmed.server";
 import { searchTrustedSources, type TrustedSource } from "@/lib/trusted-sources.server";
 import { classifyQuery, type QueryRoute } from "@/lib/query-router.server";
+import { isRagDatabaseConfigured } from "@/lib/rag/supabase.server";
+import { indexRetrievedEvidence, retrieveRagEvidence } from "@/lib/rag/index.server";
 
 const BASE_SYSTEM_PROMPT = `You are the AI Medical & Research Assistant: an educational medical and biomedical research assistant. Help students, researchers, and general users understand medical and biomedical topics — not to replace a clinician.
 
