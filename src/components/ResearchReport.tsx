@@ -14,6 +14,29 @@ type Props = {
   onClose?: () => void;
 };
 
+
+function cleanDescription(value: string): string {
+  const decoded = value
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#([0-9]+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&beta;/gi, "β")
+    .replace(/&alpha;/gi, "α")
+    .replace(/&gamma;/gi, "γ")
+    .replace(/&ndash;/gi, "–")
+    .replace(/&mdash;/gi, "—")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&apos;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (decoded.length <= 420) return decoded;
+
+  const sentence = decoded.match(/^.{1,420}?(?:[.!?](?:\s|$))/);
+  const shortened = sentence?.[0]?.trim() ?? decoded.slice(0, 400).trimEnd();
+  return shortened + " …";
+}
+
 function sourceCategory(source: ReportSource) {
   const value = (source.category ?? source.organization ?? "").toLowerCase();
   return value.includes("pubmed") || value.includes("journal") || value.includes("research")
@@ -54,7 +77,7 @@ function downloadMarkdown(question: string, answer: AssistantAnswer) {
       source.studyType ? `Study type: ${source.studyType}` : "",
     ].filter(Boolean).join(" · ");
     lines.push(`${index + 1}. [${source.title}](${source.url ?? "#"}) — ${source.organization}${metadata ? ` (${metadata})` : ""}`);
-    if (source.description) lines.push(`   ${source.description}`);
+    if (source.description) lines.push(`   ${cleanDescription(source.description)}`);
   });
 
   lines.push("", "---", "Educational use only. This report is not a diagnosis or a substitute for professional medical advice.");
@@ -149,7 +172,7 @@ export function ResearchReport({ question, answer, onClose }: Props) {
                     {[source.publicationYear ? `Published ${source.publicationYear}` : "", source.studyType ?? ""].filter(Boolean).join(" · ")}
                   </p>
                 ) : null}
-                {source.description ? <p className="mt-2 text-sm leading-6 text-muted-foreground">{source.description}</p> : null}
+                {source.description ? <p className="mt-2 text-sm leading-6 text-muted-foreground">{cleanDescription(source.description)}</p> : null}
                 {source.url ? <a href={source.url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm font-medium text-primary underline underline-offset-2">View source</a> : null}
               </article>
             ))}
