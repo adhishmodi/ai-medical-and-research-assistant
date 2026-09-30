@@ -186,7 +186,7 @@ export const askAssistant = createServerFn({ method: "POST" })
           return groundedAnswer;
         }
         console.warn(`${provider.label} returned an invalid response shape; trying next provider.`);
-      } catch (error) { console.warn(`${provider.label} unavailable; trying next provider.`, error); }
+      } catch (error) { console.warn(`${provider.label} unavailable; trying next provider.`, error instanceof Error ? error.message : error); }
     }
     return getMockAnswer(question);
   });
