@@ -76,7 +76,7 @@ function classifyEvidence(studyType: string): { normalized: string; level: Evide
 
 function relevanceScore(query: string, title: string, description: string): number {
   const terms = query.toLowerCase().split(/\W+/).filter((term) => term.length > 2);
-  const haystack = \`\${title} \${description}\`.toLowerCase();
+  const haystack = `${title} ${description}`.toLowerCase();
   if (!terms.length) return 0;
   const hits = terms.reduce((n, term) => n + (haystack.includes(term) ? 1 : 0), 0);
   return Math.min(100, Math.round((hits / terms.length) * 100));
@@ -159,11 +159,11 @@ export const askAssistant = createServerFn({ method: "POST" })
     if (isRagDatabaseConfigured()) {
       try {
         ragEvidence = await retrieveRagEvidence(question, 8);
-        console.info(\`RAG retrieved \${ragEvidence.length} semantic chunk(s).\`);
+        console.info(`RAG retrieved ${ragEvidence.length} semantic chunk(s).`);
         if (ragEvidence.length === 0 && (evidence.length > 0 || trusted.length > 0)) {
           await indexRetrievedEvidence(evidence, trusted);
           ragEvidence = await retrieveRagEvidence(question, 8);
-          console.info(\`RAG seeded and retrieved \${ragEvidence.length} semantic chunk(s).\`);
+          console.info(`RAG seeded and retrieved ${ragEvidence.length} semantic chunk(s).`);
         }
       } catch (error) {
         console.warn("RAG retrieval unavailable; continuing with live evidence.", error);
@@ -181,7 +181,7 @@ export const askAssistant = createServerFn({ method: "POST" })
           "\nContent: " + match.content
         ).join("\n\n")
       : "";
-    const groundedQuestion = \`\${question}\n\nQUERY ROUTE: \${route.category}\n\n\${buildEvidenceContext(evidence, trusted)}\${ragContext}\`;
+    const groundedQuestion = `${question}\n\nQUERY ROUTE: ${route.category}\n\n${buildEvidenceContext(evidence, trusted)}${ragContext}`;
     const systemPrompt = buildSystemPrompt(route);
     for (const provider of providers) {
       try {
