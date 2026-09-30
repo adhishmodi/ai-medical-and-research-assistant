@@ -73,35 +73,6 @@ function classifyEvidence(studyType: string): { normalized: string; level: Evide
   return { normalized: studyType || "Biomedical study", level: "limited" };
 }
 
-
-function relevanceScore(query: string, title: string, description: string): number {
-  const terms = query.toLowerCase().split(/\W+/).filter((term) => term.length > 2);
-  const haystack = `${title} ${description}`.toLowerCase();
-  if (!terms.length) return 0;
-  const hits = terms.reduce((n, term) => n + (haystack.includes(term) ? 1 : 0), 0);
-  return Math.min(100, Math.round((hits / terms.length) * 100));
-}
-
-type EvidenceMeta = {
-  category: "research" | "guidance";
-  publicationYear?: string;
-  studyType?: string;
-  evidenceLevel: "high" | "moderate" | "limited" | "not_applicable";
-  relevance: number;
-};
-
-function classifyEvidence(studyType: string): { normalized: string; level: EvidenceMeta["evidenceLevel"] } {
-  const s = studyType.toLowerCase();
-  if (s.includes("meta-analysis") || s.includes("systematic review")) return { normalized: "Systematic review / meta-analysis", level: "high" };
-  if (s.includes("randomized controlled trial") || s.includes("randomised controlled trial") || s.includes("clinical trial")) return { normalized: "Randomized / controlled trial", level: "high" };
-  if (s.includes("cohort")) return { normalized: "Cohort study", level: "moderate" };
-  if (s.includes("case-control")) return { normalized: "Case-control study", level: "moderate" };
-  if (s.includes("cross-sectional")) return { normalized: "Cross-sectional study", level: "limited" };
-  if (s.includes("case report") || s.includes("case series")) return { normalized: "Case report / series", level: "limited" };
-  if (s.includes("review")) return { normalized: "Review", level: "moderate" };
-  return { normalized: studyType || "Biomedical study", level: "limited" };
-}
-
 function mergeRetrievedSources(answer: AssistantAnswer, articles: PubMedArticle[], trusted: TrustedSource[], question: string): AssistantAnswer {
   const retrieved: Source[] = articles.map((article) => {
     const classification = classifyEvidence(article.studyType);
