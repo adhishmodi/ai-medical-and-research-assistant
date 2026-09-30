@@ -61,7 +61,7 @@ async function getWhoTopics(query: string, limit = 6): Promise<TrustedSource[]> 
     const title = clean(item.Title ?? "WHO Health Topic");
     const url = normalizeTrustedUrl(item.ExternalURL || item.ItemDefaultUrl || "", "who");
     return { title, organization: "World Health Organization", description: clean(item.Summary ?? "Official WHO health-topic information.").slice(0, 900), url, category: "guidance" as const };
-  }).filter((source) => validHttpsUrl(source.url));
+  }).filter((source) => Boolean(source.url));
   return deduplicateAndRank(all, query, limit);
 }
 
