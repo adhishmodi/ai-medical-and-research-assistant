@@ -25,10 +25,10 @@ async function callJsonProvider(
 
 export function getOptionalProviders(responseSchema: unknown): AIProvider[] {
   const providers: AIProvider[] = [];
-  const geminiKey = process.env["GEMINI_API_KEY"];
-  const openaiKey = process.env["OPENAI_API_KEY"];
-  const anthropicKey = process.env["ANTHROPIC_API_KEY"];
-  const groqKey = process.env["GROQ_API_KEY"];
+  const geminiKey = process.env["GEMINI_API_KEY"]?.trim();
+  const openaiKey = process.env["OPENAI_API_KEY"]?.trim();
+  const anthropicKey = process.env["ANTHROPIC_API_KEY"]?.trim();
+  const groqKey = process.env["GROQ_API_KEY"]?.trim();
 
   if (geminiKey) {
     const gemini = async (model: string, question: string, systemPrompt: string) => {
@@ -44,7 +44,7 @@ export function getOptionalProviders(responseSchema: unknown): AIProvider[] {
       if (!text) throw new Error(`Gemini ${model} returned no text output.`);
       return JSON.parse(text) as AssistantAnswer;
     };
-    providers.push({ name: "gemini-primary", label: "Gemini 3.8 Flash", generate: (q, s) => gemini(process.env["GEMINI_MODEL"] || "gemini-3.8-flash", q, s) });
+    providers.push({ name: "gemini-primary", label: "Gemini 3.8 Flash", generate: (q, s) => gemini(process.env["GEMINI_MODEL"]?.trim() || "gemini-3.8-flash", q, s) });
     providers.push({ name: "gemini-fast", label: "Gemini 3.5 Flash-Lite", generate: (q, s) => gemini("gemini-3.5-flash-lite", q, s) });
   }
 
@@ -53,7 +53,7 @@ export function getOptionalProviders(responseSchema: unknown): AIProvider[] {
       name: "openai", label: "OpenAI GPT-5 mini", generate: (question, systemPrompt) => callJsonProvider(
         "https://api.openai.com/v1/responses",
         { authorization: `Bearer ${openaiKey}` },
-        { model: process.env["OPENAI_MODEL"] || "gpt-5-mini", instructions: systemPrompt, input: question, text: { format: { type: "json_object" } } },
+        { model: process.env["OPENAI_MODEL"]?.trim() || "gpt-5-mini", instructions: systemPrompt, input: question, text: { format: { type: "json_object" } } },
         "OpenAI",
       ),
     });
@@ -64,7 +64,7 @@ export function getOptionalProviders(responseSchema: unknown): AIProvider[] {
       name: "anthropic", label: "Claude Sonnet", generate: async (question, systemPrompt) => {
         const response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
           method: "POST", headers: { "content-type": "application/json", "x-api-key": anthropicKey, "anthropic-version": "2023-06-01" },
-          body: JSON.stringify({ model: process.env["ANTHROPIC_MODEL"] || "claude-sonnet-4-5", max_tokens: 4096, system: systemPrompt, messages: [{ role: "user", content: question }] }),
+          body: JSON.stringify({ model: process.env["ANTHROPIC_MODEL"]?.trim() || "claude-sonnet-4-5", max_tokens: 4096, system: systemPrompt, messages: [{ role: "user", content: question }] }),
         }, 30000);
         if (!response.ok) throw new Error(`Anthropic returned ${response.status}: ${await response.text().catch(() => "")}`);
         const payload = (await response.json()) as { content?: Array<{ text?: string }> };
@@ -80,7 +80,7 @@ export function getOptionalProviders(responseSchema: unknown): AIProvider[] {
       name: "groq", label: "Groq Llama", generate: (question, systemPrompt) => callJsonProvider(
         "https://api.groq.com/openai/v1/chat/completions",
         { authorization: `Bearer ${groqKey}` },
-        { model: process.env["GROQ_MODEL"] || "llama-3.3-70b-versatile", messages: [{ role: "system", content: systemPrompt }, { role: "user", content: question }], response_format: { type: "json_object" } },
+        { model: process.env["GROQ_MODEL"]?.trim() || "llama-3.3-70b-versatile", messages: [{ role: "system", content: systemPrompt }, { role: "user", content: question }], response_format: { type: "json_object" } },
         "Groq",
       ),
     });
