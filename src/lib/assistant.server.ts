@@ -105,9 +105,31 @@ function classifyEvidence(studyType: string): { normalized: string; level: Evide
 function mergeRetrievedSources(answer: AssistantAnswer, articles: PubMedArticle[], trusted: TrustedSource[], question: string): AssistantAnswer {
   const retrieved: Source[] = articles.map((article) => {
     const classification = classifyEvidence(article.studyType);
-    return { title: article.title, organization: "PubMed", description: article.abstract || `PubMed record for PMID ${article.pmid}.`, url: article.url, category: "research" as const, publicationYear: article.publicationDate || undefined, studyType: classification.normalized, evidenceLevel: classification.level, relevance: relevanceScore(question, article.title, article.abstract) };
+    return {
+      title: article.title,
+      organization: "PubMed",
+      description: article.abstract || `PubMed record for PMID ${article.pmid}.`,
+      url: article.url,
+      category: "research" as const,
+      publicationYear: article.publicationDate || undefined,
+      studyType: classification.normalized,
+      evidenceLevel: classification.level,
+      relevance: relevanceScore(question, article.title, article.abstract),
+    };
   });
-  retrieved.push(...trusted.map((source) => ({ title: source.title, organization: source.organization, description: source.description, url: source.url, category: "guidance" as const, studyType: "Authoritative health guidance", evidenceLevel: "not_applicable" as const, relevance: relevanceScore(question, source.title, source.description) })));
+
+  retrieved.push(
+    ...trusted.map((source) => ({
+      title: source.title,
+      organization: source.organization,
+      description: source.description,
+      url: source.url,
+      category: "guidance" as const,
+      studyType: "Authoritative health guidance",
+      evidenceLevel: "not_applicable" as const,
+      relevance: relevanceScore(question, source.title, source.description),
+    })),
+  );
   const seen = new Set<string>();
   const sources = [...retrieved, ...answer.sources].filter((source) => {
     if (!source.url || seen.has(source.url)) return false;
