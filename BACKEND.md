@@ -2,7 +2,7 @@
 
 ## Request flow
 
-~~~text
+```text
 Frontend
    |
    | askAssistant({ data: { question } })
@@ -30,39 +30,39 @@ TanStack Start server function
    |
    v
 Frontend AnswerPanel / ResearchReport
-~~~
+```
 
 ## Environment
 
 Copy .env.example to .env. Secrets must remain server-side.
 
-~~~env
+```env
 GEMINI_API_KEY=...
-~~~
+```
 
 RAG:
 
-~~~env
+```env
 SUPABASE_URL=...
 SUPABASE_SECRET_KEY=...
 GEMINI_EMBEDDING_MODEL=gemini-embedding-001
 GEMINI_EMBEDDING_DIMENSIONS=768
-~~~
+```
 
 Optional provider fallbacks:
 
-~~~env
+```env
 OPENAI_API_KEY=
 OPENAI_MODEL=
 ANTHROPIC_API_KEY=
 ANTHROPIC_MODEL=
 GROQ_API_KEY=
 GROQ_MODEL=
-~~~
+```
 
 ## Response contract
 
-~~~ts
+```ts
 {
   topic: string;
   summary: string;
@@ -81,7 +81,7 @@ GROQ_MODEL=
     relevance?: number;
   }>;
 }
-~~~
+```
 
 ## RAG behavior
 
@@ -93,10 +93,10 @@ GET /api/health reports whether required server configuration is present without
 
 ## Verification
 
-~~~bash
+```bash
 npm run lint
 npm test
 npm run build
-~~~
+```
 
 For a live smoke test, ask a non-personal medical research question and verify that the response contains retrieved sources, a safety notice, and no client-exposed API keys.

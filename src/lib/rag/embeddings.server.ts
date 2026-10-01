@@ -10,10 +10,14 @@ export async function embedText(
   const model = process.env["GEMINI_EMBEDDING_MODEL"] || DEFAULT_MODEL;
   const dimensions = Number(process.env["GEMINI_EMBEDDING_DIMENSIONS"] || DEFAULT_DIMENSIONS);
   if (model !== DEFAULT_MODEL) {
-    throw new Error(`RAG currently requires ${DEFAULT_MODEL}; ${model} is not compatible with the configured task types and vector schema.`);
+    throw new Error(
+      `RAG currently requires ${DEFAULT_MODEL}; ${model} is not compatible with the configured task types and vector schema.`,
+    );
   }
   if (!Number.isInteger(dimensions) || dimensions !== DEFAULT_DIMENSIONS) {
-    throw new Error(`RAG currently requires ${DEFAULT_DIMENSIONS}-dimensional embeddings to match the Supabase vector schema.`);
+    throw new Error(
+      `RAG currently requires ${DEFAULT_DIMENSIONS}-dimensional embeddings to match the Supabase vector schema.`,
+    );
   }
   const response = await fetch(
     "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":embedContent",
@@ -27,7 +31,13 @@ export async function embedText(
       }),
     },
   );
-  if (!response.ok) throw new Error("Gemini embedding API returned " + response.status + ": " + await response.text().catch(() => ""));
+  if (!response.ok)
+    throw new Error(
+      "Gemini embedding API returned " +
+        response.status +
+        ": " +
+        (await response.text().catch(() => "")),
+    );
   const payload = (await response.json()) as { embedding?: { values?: number[] } };
   const values = payload.embedding?.values;
   if (!values?.length) throw new Error("Gemini embedding response contained no vector.");

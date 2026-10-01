@@ -13,21 +13,24 @@ describe("matchMedicalChunks", () => {
     process.env["SUPABASE_SECRET_KEY"] = "test-secret";
 
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify([
+      new Response(
+        JSON.stringify([
+          {
+            id: 1,
+            document_id: 2,
+            content: "COPD evidence",
+            similarity: 0.91,
+            source_url: "https://example.org/copd",
+            source_type: "guidance",
+            organization: "WHO",
+            title: "COPD",
+          },
+        ]),
         {
-          id: 1,
-          document_id: 2,
-          content: "COPD evidence",
-          similarity: 0.91,
-          source_url: "https://example.org/copd",
-          source_type: "guidance",
-          organization: "WHO",
-          title: "COPD",
+          status: 200,
+          headers: { "content-type": "application/json" },
         },
-      ]), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
+      ),
     );
 
     const matches = await matchMedicalChunks([1, 0, 0], 0.4, 8);
@@ -40,10 +43,12 @@ describe("matchMedicalChunks", () => {
         method: "POST",
       }),
     );
-    expect(Object.fromEntries(new Headers(request?.headers))).toEqual(expect.objectContaining({
-      apikey: "test-secret",
-      authorization: "Bearer test-secret",
-    }));
+    expect(Object.fromEntries(new Headers(request?.headers))).toEqual(
+      expect.objectContaining({
+        apikey: "test-secret",
+        authorization: "Bearer test-secret",
+      }),
+    );
     expect(JSON.parse(String(request?.body))).toEqual({
       query_embedding: [1, 0, 0],
       match_threshold: 0.4,
@@ -52,6 +57,8 @@ describe("matchMedicalChunks", () => {
   });
 
   it("fails clearly when Supabase RAG is not configured", async () => {
-    await expect(matchMedicalChunks([1, 0, 0])).rejects.toThrow("Supabase RAG database is not configured.");
+    await expect(matchMedicalChunks([1, 0, 0])).rejects.toThrow(
+      "Supabase RAG database is not configured.",
+    );
   });
 });

@@ -12,10 +12,5 @@ export default defineConfig({
   resolve: {
     tsconfigPaths: true,
   },
-  plugins: [
-    tanstackStart(),
-    nitro(),
-    tailwindcss(),
-    viteReact(),
-  ],
+  plugins: [tanstackStart(), nitro(), tailwindcss(), viteReact()],
 });

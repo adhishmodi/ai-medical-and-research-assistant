@@ -6,7 +6,7 @@ An educational full-stack web application for exploring medical and biomedical q
 
 ## Current architecture
 
-~~~text
+```text
 Browser
   │
   ▼
@@ -27,7 +27,7 @@ TanStack Start server function
   │    ├─ Anthropic
   │    └─ Groq
   └─ Structured response validation + grounded sources
-~~~
+```
 
 The browser never receives server-side API keys. AI-generated citation URLs are not treated as verified: displayed sources come from application retrieval or the curated offline fallback.
 
@@ -47,7 +47,7 @@ The browser never receives server-side API keys. AI-generated citation URLs are 
 
 ## Project structure
 
-~~~text
+```text
 src/
 ├─ components/                 # UI and evidence/report presentation
 ├─ data/mockResponses.ts      # Curated offline fallback + response types
@@ -69,52 +69,52 @@ src/
 supabase/migrations/           # pgvector schema + similarity RPC
 vite.config.ts                 # TanStack Start + Nitro + Tailwind + React
 vercel.json                    # Vercel framework declaration
-~~~
+```
 
 ## Local development
 
 Requirements: Node.js 20+ is recommended.
 
-~~~bash
+```bash
 git clone https://github.com/adhishmodi/ai-medical-and-research-assistant.git
 cd ai-medical-and-research-assistant
 npm install
-~~~
+```
 
 Create a local environment file:
 
-~~~bash
+```bash
 cp .env.example .env
-~~~
+```
 
 At minimum, configure:
 
-~~~env
+```env
 GEMINI_API_KEY=your_server_side_key
-~~~
+```
 
 For RAG, also configure:
 
-~~~env
+```env
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SECRET_KEY=your_server_side_secret_key
-~~~
+```
 
 Optional provider keys are documented in .env.example.
 
 Start development:
 
-~~~bash
+```bash
 npm run dev
-~~~
+```
 
 Quality checks:
 
-~~~bash
+```bash
 npm run lint
 npm test
 npm run build
-~~~
+```
 
 npm run build performs both the Vite production build and a strict TypeScript check.
 
@@ -122,9 +122,9 @@ npm run build performs both the Vite production build and a strict TypeScript ch
 
 Once running, the readiness endpoint is:
 
-~~~text
+```text
 GET /api/health
-~~~
+```
 
 It reports configuration status without exposing secret values. A fully configured backend returns HTTP 200; missing required backend configuration returns HTTP 503.
 

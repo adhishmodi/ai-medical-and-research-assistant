@@ -36,10 +36,12 @@ describe("embedText", () => {
 
     const request = fetchMock.mock.calls[0]?.[1];
     expect(request?.method).toBe("POST");
-    expect(Object.fromEntries(new Headers(request?.headers))).toEqual(expect.objectContaining({
-      "content-type": "application/json",
-      "x-goog-api-key": "test-key",
-    }));
+    expect(Object.fromEntries(new Headers(request?.headers))).toEqual(
+      expect.objectContaining({
+        "content-type": "application/json",
+        "x-goog-api-key": "test-key",
+      }),
+    );
     expect(JSON.parse(String(request?.body))).toMatchObject({
       content: { parts: [{ text: "COPD research" }] },
       taskType: "RETRIEVAL_QUERY",
@@ -56,7 +58,6 @@ describe("embedText", () => {
     await expect(embedText("test")).rejects.toThrow("Gemini embedding API returned 503");
   });
 });
-
 
 describe("embedding configuration", () => {
   afterEach(() => {
@@ -77,6 +78,8 @@ describe("embedding configuration", () => {
     process.env["GEMINI_API_KEY"] = "test-key";
     process.env["GEMINI_EMBEDDING_DIMENSIONS"] = "1536";
 
-    await expect(embedText("test")).rejects.toThrow("RAG currently requires 768-dimensional embeddings");
+    await expect(embedText("test")).rejects.toThrow(
+      "RAG currently requires 768-dimensional embeddings",
+    );
   });
 });

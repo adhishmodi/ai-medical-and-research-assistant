@@ -77,7 +77,6 @@ describe("backend health status", () => {
   });
 });
 
-
 it("reports incompatible embedding configuration as invalid RAG state", () => {
   setCompleteEnvironment();
   process.env["GEMINI_EMBEDDING_DIMENSIONS"] = "1536";

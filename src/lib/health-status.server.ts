@@ -25,14 +25,9 @@ function getConfigurationStatus(): BackendHealth["configuration"] {
   const supabaseSecret = getEnv("SUPABASE_SECRET_KEY");
   const supabaseUrlValid = /^https?:\/\//i.test(supabaseUrl);
   const supabase =
-    !supabaseUrl || !supabaseSecret
-      ? "missing"
-      : supabaseUrlValid
-        ? "configured"
-        : "invalid";
+    !supabaseUrl || !supabaseSecret ? "missing" : supabaseUrlValid ? "configured" : "invalid";
 
-  const embeddingModel =
-    getEnv("GEMINI_EMBEDDING_MODEL") || DEFAULT_EMBEDDING_MODEL;
+  const embeddingModel = getEnv("GEMINI_EMBEDDING_MODEL") || DEFAULT_EMBEDDING_MODEL;
   const embeddingDimensions = Number(
     getEnv("GEMINI_EMBEDDING_DIMENSIONS") || DEFAULT_EMBEDDING_DIMENSIONS,
   );
