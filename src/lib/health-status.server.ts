@@ -37,9 +37,9 @@ function getConfigurationStatus(): BackendHealth["configuration"] {
     getEnv("GEMINI_EMBEDDING_DIMENSIONS") || DEFAULT_EMBEDDING_DIMENSIONS,
   );
   const embeddingConfigurationValid =
-    embeddingModel.length > 0 &&
+    embeddingModel === DEFAULT_EMBEDDING_MODEL &&
     Number.isInteger(embeddingDimensions) &&
-    embeddingDimensions > 0;
+    embeddingDimensions === DEFAULT_EMBEDDING_DIMENSIONS;
 
   const rag: ConfigurationStatus =
     supabase === "configured" && embeddingConfigurationValid
