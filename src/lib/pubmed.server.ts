@@ -86,11 +86,7 @@ async function searchPubMedIds(term: string, limit: number): Promise<string[]> {
     tool: "ai_medical_research_assistant",
   });
 
-  const response = await fetchWithTimeout(
-    `${BASE}/esearch.fcgi?${params}`,
-    {},
-    8000,
-  );
+  const response = await fetchWithTimeout(`${BASE}/esearch.fcgi?${params}`, {}, 8000);
   if (!response.ok) throw new Error(`PubMed search returned ${response.status}`);
 
   const search = (await response.json()) as {
@@ -123,11 +119,7 @@ export async function searchPubMed(question: string, limit = 5): Promise<PubMedA
     rettype: "abstract",
     tool: "ai_medical_research_assistant",
   });
-  const fetchResponse = await fetchWithTimeout(
-    `${BASE}/efetch.fcgi?${fetchParams}`,
-    {},
-    10000,
-  );
+  const fetchResponse = await fetchWithTimeout(`${BASE}/efetch.fcgi?${fetchParams}`, {}, 10000);
   if (!fetchResponse.ok) throw new Error(`PubMed fetch returned ${fetchResponse.status}`);
   const xml = await fetchResponse.text();
 

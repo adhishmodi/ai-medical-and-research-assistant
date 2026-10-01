@@ -133,13 +133,9 @@ async function searchMedlinePlus(query: string, limit = 4): Promise<TrustedSourc
             ),
           );
 
-          const fullSummary = block.match(
-            /<content name="FullSummary">([\s\S]*?)<\/content>/,
-          )?.[1];
+          const fullSummary = block.match(/<content name="FullSummary">([\s\S]*?)<\/content>/)?.[1];
 
-          const shortSnippet = block.match(
-            /<content name="snippet">([\s\S]*?)<\/content>/,
-          )?.[1];
+          const shortSnippet = block.match(/<content name="snippet">([\s\S]*?)<\/content>/)?.[1];
 
           const snippet = stripHtml(
             decodeHtml(
@@ -163,7 +159,9 @@ async function searchMedlinePlus(query: string, limit = 4): Promise<TrustedSourc
 
       if (results.length > 0) {
         if (searchQuery !== query) {
-          console.info(`MedlinePlus fallback query matched ${results.length} source(s): ${searchQuery}`);
+          console.info(
+            `MedlinePlus fallback query matched ${results.length} source(s): ${searchQuery}`,
+          );
         }
         return results;
       }
