@@ -232,7 +232,6 @@ Mobile app
 Complex admin dashboard
 Fine-tuning
 Multi-agent architecture
-Complex vector database
 Voice assistant
 Wearable integration
 Automatic diagnosis
@@ -240,9 +239,9 @@ Personalized prescriptions
 
 These can become future versions.
 
-1.11 Future architecture
+1.11 Implemented architecture and future scope
 
-The prototype should eventually evolve toward:
+The current implementation now follows the evidence-aware architecture below. Future work can add authentication, persistent user history, rate limiting, and other product features without changing the core safety/retrieval flow.
 User
 │
 ▼
