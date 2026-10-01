@@ -8,6 +8,37 @@ export type TrustedSource = {
 
 import { fetchWithTimeout } from "@/lib/server-fetch";
 
+const SEARCH_STOP_WORDS = new Set([
+  "a",
+  "about",
+  "an",
+  "and",
+  "are",
+  "be",
+  "between",
+  "can",
+  "current",
+  "does",
+  "do",
+  "for",
+  "from",
+  "findings",
+  "how",
+  "in",
+  "latest",
+  "of",
+  "on",
+  "research",
+  "say",
+  "studies",
+  "study",
+  "the",
+  "to",
+  "what",
+  "which",
+  "with",
+]);
+
 function clean(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
@@ -24,6 +55,20 @@ function decodeHtml(value: string): string {
 
 function stripHtml(value: string): string {
   return clean(value.replace(/<[^>]*>/g, " "));
+}
+
+function buildFallbackQueries(query: string): string[] {
+  const terms = query
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .split(/\s+/)
+    .map((term) => term.replace(/^-+|-+$/g, ""))
+    .filter((term) => term.length >= 3 && !SEARCH_STOP_WORDS.has(term));
+
+  const uniqueTerms = [...new Set(terms)].slice(0, 8);
+  if (uniqueTerms.length === 0) return [];
+
+  return [...new Set([uniqueTerms.join(" "), uniqueTerms.slice(0, 5).join(" ")])];
 }
 
 function normalizeTrustedUrl(url: string, organization: "who" | "medlineplus"): string {
@@ -50,62 +95,88 @@ function normalizeTrustedUrl(url: string, organization: "who" | "medlineplus"): 
 }
 
 async function searchMedlinePlus(query: string, limit = 4): Promise<TrustedSource[]> {
-  const params = new URLSearchParams({
-    db: "healthTopics",
-    term: query,
-    retmax: String(limit),
-    rettype: "brief",
-    tool: "ai_medical_research_assistant",
-  });
+  const queries = [query, ...buildFallbackQueries(query)];
+  let lastError: unknown = null;
 
-  const response = await fetchWithTimeout(
-    "https://wsearch.nlm.nih.gov/ws/query?" + params,
-    {},
-    8000,
-  );
+  for (const searchQuery of [...new Set(queries.map(clean).filter(Boolean))]) {
+    try {
+      const params = new URLSearchParams({
+        db: "healthTopics",
+        term: searchQuery,
+        retmax: String(limit),
+        rettype: "brief",
+        tool: "ai_medical_research_assistant",
+      });
 
-  if (!response.ok) {
-    throw new Error("MedlinePlus search returned " + response.status);
+      const response = await fetchWithTimeout(
+        "https://wsearch.nlm.nih.gov/ws/query?" + params,
+        {},
+        8000,
+      );
+
+      if (!response.ok) {
+        throw new Error("MedlinePlus search returned " + response.status);
+      }
+
+      const xml = await response.text();
+      const docs = [...xml.matchAll(/<document[^>]*>([\s\S]*?)<\/document>/g)].slice(0, limit);
+
+      const results = docs
+        .map((match) => {
+          const block = match[1] ?? "";
+          const rawUrl = match[0].match(/<document[^>]*\burl="([^"]+)"/)?.[1] ?? "";
+
+          const title = decodeHtml(
+            clean(
+              block.match(/<content name="title">([\s\S]*?)<\/content>/)?.[1] ??
+                "MedlinePlus Health Topic",
+            ),
+          );
+
+          const fullSummary = block.match(
+            /<content name="FullSummary">([\s\S]*?)<\/content>/,
+          )?.[1];
+
+          const shortSnippet = block.match(
+            /<content name="snippet">([\s\S]*?)<\/content>/,
+          )?.[1];
+
+          const snippet = stripHtml(
+            decodeHtml(
+              clean(
+                fullSummary ??
+                  shortSnippet ??
+                  "Trusted health information from the U.S. National Library of Medicine.",
+              ),
+            ),
+          );
+
+          return {
+            title,
+            organization: "MedlinePlus / U.S. National Library of Medicine",
+            description: snippet.slice(0, 900),
+            url: normalizeTrustedUrl(rawUrl, "medlineplus"),
+            category: "guidance" as const,
+          };
+        })
+        .filter((source) => Boolean(source.url));
+
+      if (results.length > 0) {
+        if (searchQuery !== query) {
+          console.info(`MedlinePlus fallback query matched ${results.length} source(s): ${searchQuery}`);
+        }
+        return results;
+      }
+    } catch (error) {
+      lastError = error;
+    }
   }
 
-  const xml = await response.text();
-  const docs = [...xml.matchAll(/<document[^>]*>([\s\S]*?)<\/document>/g)].slice(0, limit);
+  if (lastError) {
+    throw lastError;
+  }
 
-  return docs
-    .map((match) => {
-      const block = match[1] ?? "";
-      const rawUrl = match[0].match(/<document[^>]*\burl="([^"]+)"/)?.[1] ?? "";
-
-      const title = decodeHtml(
-        clean(
-          block.match(/<content name="title">([\s\S]*?)<\/content>/)?.[1] ??
-            "MedlinePlus Health Topic",
-        ),
-      );
-
-      const fullSummary = block.match(/<content name="FullSummary">([\s\S]*?)<\/content>/)?.[1];
-
-      const shortSnippet = block.match(/<content name="snippet">([\s\S]*?)<\/content>/)?.[1];
-
-      const snippet = stripHtml(
-        decodeHtml(
-          clean(
-            fullSummary ??
-              shortSnippet ??
-              "Trusted health information from the U.S. National Library of Medicine.",
-          ),
-        ),
-      );
-
-      return {
-        title,
-        organization: "MedlinePlus / U.S. National Library of Medicine",
-        description: snippet.slice(0, 900),
-        url: normalizeTrustedUrl(rawUrl, "medlineplus"),
-        category: "guidance" as const,
-      };
-    })
-    .filter((source) => Boolean(source.url));
+  return [];
 }
 
 async function getWhoTopics(query: string, limit = 6): Promise<TrustedSource[]> {
