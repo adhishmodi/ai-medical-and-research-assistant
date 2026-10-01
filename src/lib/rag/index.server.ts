@@ -55,11 +55,18 @@ export async function indexRetrievedEvidence(articles: PubMedArticle[], trusted:
       title: source.title, description: source.description, content: guidanceContent(source),
     })),
   ];
-  await Promise.allSettled(jobs);
+  const results = await Promise.allSettled(jobs);
+  const failures = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
+  if (failures.length > 0) {
+    const messages = failures.map((failure) =>
+      failure.reason instanceof Error ? failure.reason.message : String(failure.reason),
+    );
+    throw new Error("RAG indexing failed for " + failures.length + " source(s): " + messages.join(" | "));
+  }
 }
 
 export async function retrieveRagEvidence(question: string, count = 8): Promise<RagMatch[]> {
   if (!isRagDatabaseConfigured()) return [];
   const embedding = await embedText(question, "RETRIEVAL_QUERY");
-  return matchMedicalChunks(embedding, 0.55, count);
+  return matchMedicalChunks(embedding, 0.4, count);
 }
