@@ -124,9 +124,9 @@ export async function searchPubMed(question: string, limit = 5): Promise<PubMedA
   const xml = await fetchResponse.text();
 
   const articlesByPmid = new Map<string, string>();
-  for (const blockMatch of xml.matchAll(/<PubmedArticle>[\\s\\S]*?<\\/PubmedArticle>/g)) {
+  for (const blockMatch of xml.matchAll(/<PubmedArticle>[\s\S]*?<\/PubmedArticle>/g)) {
     const block = blockMatch[0] ?? "";
-    const blockPmid = block.match(/<PMID[^>]*>(\\d+)<\\/PMID>/)?.[1];
+    const blockPmid = block.match(/<PMID[^>]*>(\d+)<\/PMID>/)?.[1];
     if (blockPmid) {
       articlesByPmid.set(blockPmid, block);
     }
