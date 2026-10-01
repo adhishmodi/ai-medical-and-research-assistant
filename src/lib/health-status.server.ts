@@ -42,11 +42,11 @@ function getConfigurationStatus(): BackendHealth["configuration"] {
     embeddingDimensions === DEFAULT_EMBEDDING_DIMENSIONS;
 
   const rag: ConfigurationStatus =
-    supabase === "configured" && embeddingConfigurationValid
-      ? "configured"
-      : supabase === "missing" || !embeddingConfigurationValid
-        ? "missing"
-        : "invalid";
+    supabase === "missing"
+      ? "missing"
+      : supabase === "invalid" || !embeddingConfigurationValid
+        ? "invalid"
+        : "configured";
 
   return { gemini, supabase, rag };
 }
