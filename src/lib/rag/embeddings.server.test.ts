@@ -56,3 +56,27 @@ describe("embedText", () => {
     await expect(embedText("test")).rejects.toThrow("Gemini embedding API returned 503");
   });
 });
+
+
+describe("embedding configuration", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete process.env["GEMINI_API_KEY"];
+    delete process.env["GEMINI_EMBEDDING_MODEL"];
+    delete process.env["GEMINI_EMBEDDING_DIMENSIONS"];
+  });
+
+  it("rejects a model that does not match the RAG task configuration", async () => {
+    process.env["GEMINI_API_KEY"] = "test-key";
+    process.env["GEMINI_EMBEDDING_MODEL"] = "gemini-embedding-2";
+
+    await expect(embedText("test")).rejects.toThrow("RAG currently requires gemini-embedding-001");
+  });
+
+  it("rejects dimensions that do not match the pgvector schema", async () => {
+    process.env["GEMINI_API_KEY"] = "test-key";
+    process.env["GEMINI_EMBEDDING_DIMENSIONS"] = "1536";
+
+    await expect(embedText("test")).rejects.toThrow("RAG currently requires 768-dimensional embeddings");
+  });
+});
