@@ -238,6 +238,7 @@ function deduplicateAndRank(sources: TrustedSource[], query: string, limit = 6):
       seen.add(source.url);
       return true;
     })
+    .filter((source) => scoreSource(source, query) > 0)
     .sort((a, b) => scoreSource(b, query) - scoreSource(a, query))
     .slice(0, limit);
 }
