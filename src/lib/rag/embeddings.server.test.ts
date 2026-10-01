@@ -1,7 +1,13 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { embedText } from "./embeddings.server";
 
 describe("embedText", () => {
+  beforeEach(() => {
+    delete process.env["GEMINI_API_KEY"];
+    delete process.env["GEMINI_EMBEDDING_MODEL"];
+    delete process.env["GEMINI_EMBEDDING_DIMENSIONS"];
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     delete process.env["GEMINI_API_KEY"];
@@ -30,7 +36,7 @@ describe("embedText", () => {
 
     const request = fetchMock.mock.calls[0]?.[1];
     expect(request?.method).toBe("POST");
-    expect(request?.headers).toEqual(expect.objectContaining({
+    expect(Object.fromEntries(new Headers(request?.headers))).toEqual(expect.objectContaining({
       "content-type": "application/json",
       "x-goog-api-key": "test-key",
     }));
