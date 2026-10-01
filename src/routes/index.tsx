@@ -7,7 +7,7 @@ import { ResearchHistory, useResearchHistory, type ResearchSession } from "@/com
 import { ResearchReport } from "@/components/ResearchReport";
 import { SafetyNotice } from "@/components/SafetyNotice";
 import type { AssistantAnswer } from "@/data/mockResponses";
-import { askAssistant } from "@/lib/assistant.server";
+import { askAssistant } from "@/lib/assistant.functions";
 
 const TITLE = "AI Medical & Research Assistant";
 const DESCRIPTION =
