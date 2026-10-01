@@ -23,7 +23,7 @@ const RESPONSE_SCHEMA = { type: "object", properties: { topic: { type: "string" 
 function isValidAnswer(value: unknown): value is AssistantAnswer {
   if (!value || typeof value !== "object") return false;
   const a = value as Record<string, unknown>;
-  const hasValidSources = Array.isArray(a.sources) && a.sources.every((source) => {
+  const hasValidSources = Array.isArray(a["sources"]) && a["sources"].every((source) => {
     if (!source || typeof source !== "object") return false;
     const s = source as Record<string, unknown>;
     return (
