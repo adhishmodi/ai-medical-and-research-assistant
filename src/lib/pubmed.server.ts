@@ -35,7 +35,7 @@ export async function searchPubMed(question: string, limit = 5): Promise<PubMedA
     const title = decodeXml(clean(block.match(/<ArticleTitle>([\s\S]*?)<\/ArticleTitle>/)?.[1]?.replace(/<[^>]+>/g, " ") ?? "PubMed article"));
     const journal = decodeXml(clean(block.match(/<Journal><Title>([\s\S]*?)<\/Title>/)?.[1] ?? "PubMed"));
     const year = block.match(/<PubDate>[\s\S]*?<Year>(\d{4})<\/Year>/)?.[1] ?? block.match(/<PubDate>[\s\S]*?<MedlineDate>(\d{4})/)?.[1] ?? "";
-    const publicationTypes = [...block.matchAll(/<PublicationType[^>]*>([\s\S]*?)<\/PublicationType>/g)].map((m) => decodeXml(clean(m[1]))).filter(Boolean);
+    const publicationTypes = [...block.matchAll(/<PublicationType[^>]*>([\s\S]*?)<\/PublicationType>/g)].map((m) => decodeXml(clean(m[1] ?? ""))).filter(Boolean);
     const studyType = publicationTypes.length ? publicationTypes.slice(0, 2).join("; ") : "Biomedical study";
     const abstract = clean((block.match(/<AbstractText[^>]*>([\s\S]*?)<\/AbstractText>/g) ?? []).map((x) => x.replace(/<[^>]+>/g, " ").replace(/^<AbstractText[^>]*>/, "").replace(/<\/AbstractText>$/, "")).join(" "));
     return { pmid, title, journal, publicationDate: year, abstract, url: `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`, studyType };
