@@ -19,9 +19,7 @@ function getEnv(name: string): string {
 }
 
 function getConfigurationStatus(): BackendHealth["configuration"] {
-  const gemini = getEnv("GEMINI_API_KEY")
-    ? "configured"
-    : "missing";
+  const gemini = getEnv("GEMINI_API_KEY") ? "configured" : "missing";
 
   const supabaseUrl = getEnv("SUPABASE_URL");
   const supabaseSecret = getEnv("SUPABASE_SECRET_KEY");
@@ -33,7 +31,8 @@ function getConfigurationStatus(): BackendHealth["configuration"] {
         ? "configured"
         : "invalid";
 
-  const embeddingModel = getEnv("GEMINI_EMBEDDING_MODEL") || DEFAULT_EMBEDDING_MODEL;
+  const embeddingModel =
+    getEnv("GEMINI_EMBEDDING_MODEL") || DEFAULT_EMBEDDING_MODEL;
   const embeddingDimensions = Number(
     getEnv("GEMINI_EMBEDDING_DIMENSIONS") || DEFAULT_EMBEDDING_DIMENSIONS,
   );
