@@ -4,6 +4,8 @@ import { getOptionalProviders } from "@/lib/ai/providers.server";
 import { searchPubMed, type PubMedArticle } from "@/lib/pubmed.server";
 import { searchTrustedSources, type TrustedSource } from "@/lib/trusted-sources.server";
 import { classifyQuery, type QueryRoute } from "@/lib/query-router.server";
+import { isRagDatabaseConfigured } from "@/lib/rag/supabase.server";
+import { indexRetrievedEvidence, retrieveRagEvidence } from "@/lib/rag/index.server";
 
 const BASE_SYSTEM_PROMPT = `You are the AI Medical & Research Assistant: an educational medical and biomedical research assistant. Help students, researchers, and general users understand medical and biomedical topics — not to replace a clinician.
 
@@ -21,7 +23,28 @@ const RESPONSE_SCHEMA = { type: "object", properties: { topic: { type: "string" 
 function isValidAnswer(value: unknown): value is AssistantAnswer {
   if (!value || typeof value !== "object") return false;
   const a = value as Record<string, unknown>;
-  return typeof a.topic === "string" && typeof a.summary === "string" && Array.isArray(a.keyInformation) && a.keyInformation.every((x) => typeof x === "string") && Array.isArray(a.considerations) && a.considerations.every((x) => typeof x === "string") && Array.isArray(a.whenToSeekCare) && a.whenToSeekCare.every((x) => typeof x === "string") && Array.isArray(a.sources) && a.sources.every((x) => x && typeof x === "object" && typeof (x as any).title === "string" && typeof (x as any).organization === "string" && typeof (x as any).description === "string" && typeof (x as any).url === "string");
+  const hasValidSources = Array.isArray(a["sources"]) && a["sources"].every((source) => {
+    if (!source || typeof source !== "object") return false;
+    const s = source as Record<string, unknown>;
+    return (
+      typeof s["title"] === "string" &&
+      typeof s["organization"] === "string" &&
+      typeof s["description"] === "string" &&
+      typeof s["url"] === "string"
+    );
+  });
+
+  return (
+    typeof a["topic"] === "string" &&
+    typeof a["summary"] === "string" &&
+    Array.isArray(a["keyInformation"]) &&
+    a["keyInformation"].every((x) => typeof x === "string") &&
+    Array.isArray(a["considerations"]) &&
+    a["considerations"].every((x) => typeof x === "string") &&
+    Array.isArray(a["whenToSeekCare"]) &&
+    a["whenToSeekCare"].every((x) => typeof x === "string") &&
+    hasValidSources
+  );
 }
 
 type AskAssistantRequest = { question?: unknown };
@@ -72,11 +95,33 @@ function classifyEvidence(studyType: string): { normalized: string; level: Evide
 }
 
 function mergeRetrievedSources(answer: AssistantAnswer, articles: PubMedArticle[], trusted: TrustedSource[], question: string): AssistantAnswer {
-  const retrieved: Source[] = articles.map((article) => {
+  const retrieved = articles.map<Source>((article): Source => {
     const classification = classifyEvidence(article.studyType);
-    return { title: article.title, organization: "PubMed", description: article.abstract || `PubMed record for PMID ${article.pmid}.`, url: article.url, category: "research" as const, publicationYear: article.publicationDate || undefined, studyType: classification.normalized, evidenceLevel: classification.level, relevance: relevanceScore(question, article.title, article.abstract) };
+    return {
+      title: article.title,
+      organization: "PubMed",
+      description: article.abstract || `PubMed record for PMID ${article.pmid}.`,
+      url: article.url,
+      category: "research",
+      ...(article.publicationDate ? { publicationYear: article.publicationDate } : {}),
+      studyType: classification.normalized,
+      evidenceLevel: classification.level,
+      relevance: relevanceScore(question, article.title, article.abstract),
+    };
   });
-  retrieved.push(...trusted.map((source) => ({ title: source.title, organization: source.organization, description: source.description, url: source.url, category: "guidance" as const, studyType: "Authoritative health guidance", evidenceLevel: "not_applicable" as const, relevance: relevanceScore(question, source.title, source.description) })));
+
+  retrieved.push(
+    ...trusted.map((source) => ({
+      title: source.title,
+      organization: source.organization,
+      description: source.description,
+      url: source.url,
+      category: "guidance" as const,
+      studyType: "Authoritative health guidance",
+      evidenceLevel: "not_applicable" as const,
+      relevance: relevanceScore(question, source.title, source.description),
+    })),
+  );
   const seen = new Set<string>();
   const sources = [...retrieved, ...answer.sources].filter((source) => {
     if (!source.url || seen.has(source.url)) return false;
@@ -102,22 +147,46 @@ export const askAssistant = createServerFn({ method: "POST" })
       console.info(`Trusted health sources retrieved ${trusted.length} source(s).`);
     } else console.info("Trusted health sources skipped by query router.");
 
+    let ragEvidence: Awaited<ReturnType<typeof retrieveRagEvidence>> = [];
+    if (isRagDatabaseConfigured()) {
+      try {
+        ragEvidence = await retrieveRagEvidence(question, 8);
+        console.info(`RAG retrieved ${ragEvidence.length} semantic chunk(s).`);
+        if (ragEvidence.length === 0 && (evidence.length > 0 || trusted.length > 0)) {
+          await indexRetrievedEvidence(evidence, trusted);
+          ragEvidence = await retrieveRagEvidence(question, 8);
+          console.info(`RAG seeded and retrieved ${ragEvidence.length} semantic chunk(s).`);
+        }
+      } catch (error) {
+        console.warn("RAG retrieval unavailable; continuing with live evidence.", error);
+      }
+    }
+
     const providers = getOptionalProviders(RESPONSE_SCHEMA);
     if (providers.length === 0) return getMockAnswer(question);
-    const groundedQuestion = `${question}\n\nQUERY ROUTE: ${route.category}\n\n${buildEvidenceContext(evidence, trusted)}`;
+    const ragContext = ragEvidence.length
+      ? "\n\nSEMANTIC RAG MATCHES:\n" +
+        ragEvidence.map((match, i) =>
+          (i + 1) + ". " + match.title +
+          "\nSimilarity: " + match.similarity.toFixed(3) +
+          "\nSource: " + match.source_url +
+          "\nContent: " + match.content
+        ).join("\n\n")
+      : "";
+    const groundedQuestion = `${question}\n\nQUERY ROUTE: ${route.category}\n\n${buildEvidenceContext(evidence, trusted)}${ragContext}`;
     const systemPrompt = buildSystemPrompt(route);
     for (const provider of providers) {
       try {
         const answer = await provider.generate(groundedQuestion, systemPrompt);
         if (isValidAnswer(answer)) {
           const groundedAnswer = mergeRetrievedSources(answer, evidence, trusted, question);
-          const researchCount = groundedAnswer.sources.filter((s: any) => s.category === "research").length;
-          const guidanceCount = groundedAnswer.sources.filter((s: any) => s.category === "guidance").length;
+          const researchCount = groundedAnswer.sources.filter((s) => s.category === "research").length;
+          const guidanceCount = groundedAnswer.sources.filter((s) => s.category === "guidance").length;
           console.info(`AI response generated by ${provider.label} using ${evidence.length} PubMed article(s) and ${trusted.length} trusted source(s); displaying ${groundedAnswer.sources.length} source(s) (${researchCount} research, ${guidanceCount} guidance).`);
           return groundedAnswer;
         }
         console.warn(`${provider.label} returned an invalid response shape; trying next provider.`);
-      } catch (error) { console.warn(`${provider.label} unavailable; trying next provider.`, error); }
+      } catch (error) { console.warn(`${provider.label} unavailable; trying next provider.`, error instanceof Error ? error.message : error); }
     }
     return getMockAnswer(question);
   });

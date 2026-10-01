@@ -9,6 +9,7 @@ export type PubMedArticle = {
 };
 
 const BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils";
+import { fetchWithTimeout } from "@/lib/server-fetch";
 
 function clean(value: string): string { return value.replace(/\s+/g, " ").trim(); }
 
@@ -18,14 +19,14 @@ function decodeXml(value: string): string {
 
 export async function searchPubMed(question: string, limit = 5): Promise<PubMedArticle[]> {
   const params = new URLSearchParams({ db: "pubmed", term: question, retmode: "json", retmax: String(limit), sort: "relevance", tool: "ai_medical_research_assistant" });
-  const searchResponse = await fetch(`${BASE}/esearch.fcgi?${params}`);
+  const searchResponse = await fetchWithTimeout(`${BASE}/esearch.fcgi?${params}`, {}, 8000);
   if (!searchResponse.ok) throw new Error(`PubMed search returned ${searchResponse.status}`);
   const search = (await searchResponse.json()) as { esearchresult?: { idlist?: string[] } };
   const ids = search.esearchresult?.idlist ?? [];
   if (ids.length === 0) return [];
 
   const fetchParams = new URLSearchParams({ db: "pubmed", id: ids.join(","), retmode: "xml", rettype: "abstract", tool: "ai_medical_research_assistant" });
-  const fetchResponse = await fetch(`${BASE}/efetch.fcgi?${fetchParams}`);
+  const fetchResponse = await fetchWithTimeout(`${BASE}/efetch.fcgi?${fetchParams}`, {}, 10000);
   if (!fetchResponse.ok) throw new Error(`PubMed fetch returned ${fetchResponse.status}`);
   const xml = await fetchResponse.text();
 
