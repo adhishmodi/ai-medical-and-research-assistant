@@ -21,7 +21,13 @@ export async function embedText(
       }),
     },
   );
-  if (!response.ok) throw new Error("Gemini embedding API returned " + response.status + ": " + await response.text().catch(() => ""));
+  if (!response.ok)
+    throw new Error(
+      "Gemini embedding API returned " +
+        response.status +
+        ": " +
+        (await response.text().catch(() => "")),
+    );
   const payload = (await response.json()) as { embedding?: { values?: number[] } };
   const values = payload.embedding?.values;
   if (!values?.length) throw new Error("Gemini embedding response contained no vector.");

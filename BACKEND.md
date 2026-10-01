@@ -115,6 +115,7 @@ What does current research say about the relationship between sleep duration and
 ```
 
 Verify that the response:
+
 1. contains the required JSON fields;
 2. includes retrieved PubMed/trusted sources;
 3. does not expose the API key;

@@ -82,9 +82,16 @@ export function ResearchHistory({
         <div>
           <p className="rule-label">Research workspace</p>
           <h2 className="mt-1 font-display text-lg text-foreground">Research history</h2>
-          <p className="mt-1 text-xs text-muted-foreground">Saved locally in this browser · {sessions.length} session{sessions.length === 1 ? "" : "s"}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Saved locally in this browser · {sessions.length} session
+            {sessions.length === 1 ? "" : "s"}
+          </p>
         </div>
-        <button type="button" onClick={() => setOpen((value) => !value)} className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-surface">
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-surface"
+        >
           {open ? "Hide" : "Open"}
         </button>
       </div>
@@ -93,16 +100,37 @@ export function ResearchHistory({
           <div className="divide-y divide-border">
             {sessions.map((session) => (
               <div key={session.id} className="flex items-start gap-3 px-5 py-4 sm:px-6">
-                <button type="button" onClick={() => onOpen(session)} className="min-w-0 flex-1 text-left">
-                  <p className="font-medium leading-snug text-foreground hover:text-primary">{session.question}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{new Date(session.createdAt).toLocaleString()} · {session.answer.sources.length} sources</p>
+                <button
+                  type="button"
+                  onClick={() => onOpen(session)}
+                  className="min-w-0 flex-1 text-left"
+                >
+                  <p className="font-medium leading-snug text-foreground hover:text-primary">
+                    {session.question}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {new Date(session.createdAt).toLocaleString()} · {session.answer.sources.length}{" "}
+                    sources
+                  </p>
                 </button>
-                <button type="button" onClick={() => onDelete(session.id)} className="shrink-0 text-xs text-muted-foreground hover:text-destructive">Delete</button>
+                <button
+                  type="button"
+                  onClick={() => onDelete(session.id)}
+                  className="shrink-0 text-xs text-muted-foreground hover:text-destructive"
+                >
+                  Delete
+                </button>
               </div>
             ))}
           </div>
           <div className="border-t border-border px-5 py-3 sm:px-6">
-            <button type="button" onClick={onClear} className="text-xs text-muted-foreground hover:text-destructive">Clear all history</button>
+            <button
+              type="button"
+              onClick={onClear}
+              className="text-xs text-muted-foreground hover:text-destructive"
+            >
+              Clear all history
+            </button>
           </div>
         </div>
       ) : null}

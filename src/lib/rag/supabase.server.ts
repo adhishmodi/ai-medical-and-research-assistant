@@ -22,8 +22,13 @@ async function request(path: string, init: RequestInit = {}): Promise<Response> 
 }
 
 export async function upsertMedicalDocument(row: {
-  source_url: string; source_type: "pubmed" | "guidance"; organization: string;
-  title: string; description: string; publication_year?: string; study_type?: string;
+  source_url: string;
+  source_type: "pubmed" | "guidance";
+  organization: string;
+  title: string;
+  description: string;
+  publication_year?: string;
+  study_type?: string;
   content_hash: string;
 }): Promise<{ id: number }> {
   const response = await request("medical_documents?on_conflict=source_url", {
@@ -31,34 +36,70 @@ export async function upsertMedicalDocument(row: {
     headers: { Prefer: "resolution=merge-duplicates,return=representation" },
     body: JSON.stringify(row),
   });
-  if (!response.ok) throw new Error("Supabase document upsert returned " + response.status + ": " + await response.text().catch(() => ""));
+  if (!response.ok)
+    throw new Error(
+      "Supabase document upsert returned " +
+        response.status +
+        ": " +
+        (await response.text().catch(() => "")),
+    );
   const rows = (await response.json()) as Array<{ id: number }>;
   if (!rows[0]?.id) throw new Error("Supabase document upsert returned no id.");
   return rows[0];
 }
 
 export async function upsertMedicalChunk(row: {
-  document_id: number; chunk_index: number; content: string; embedding: number[];
+  document_id: number;
+  chunk_index: number;
+  content: string;
+  embedding: number[];
 }): Promise<void> {
   const response = await request("medical_chunks?on_conflict=document_id%2Cchunk_index", {
     method: "POST",
     headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
     body: JSON.stringify(row),
   });
-  if (!response.ok) throw new Error("Supabase chunk upsert returned " + response.status + ": " + await response.text().catch(() => ""));
+  if (!response.ok)
+    throw new Error(
+      "Supabase chunk upsert returned " +
+        response.status +
+        ": " +
+        (await response.text().catch(() => "")),
+    );
 }
 
 export type RagMatch = {
-  id: number; document_id: number; content: string; similarity: number;
-  source_url: string; source_type: "pubmed" | "guidance"; organization: string;
-  title: string; publication_year?: string; study_type?: string;
+  id: number;
+  document_id: number;
+  content: string;
+  similarity: number;
+  source_url: string;
+  source_type: "pubmed" | "guidance";
+  organization: string;
+  title: string;
+  publication_year?: string;
+  study_type?: string;
 };
 
-export async function matchMedicalChunks(embedding: number[], threshold = 0.55, count = 8): Promise<RagMatch[]> {
+export async function matchMedicalChunks(
+  embedding: number[],
+  threshold = 0.55,
+  count = 8,
+): Promise<RagMatch[]> {
   const response = await request("rpc/match_medical_chunks", {
     method: "POST",
-    body: JSON.stringify({ query_embedding: embedding, match_threshold: threshold, match_count: count }),
+    body: JSON.stringify({
+      query_embedding: embedding,
+      match_threshold: threshold,
+      match_count: count,
+    }),
   });
-  if (!response.ok) throw new Error("Supabase vector search returned " + response.status + ": " + await response.text().catch(() => ""));
+  if (!response.ok)
+    throw new Error(
+      "Supabase vector search returned " +
+        response.status +
+        ": " +
+        (await response.text().catch(() => "")),
+    );
   return (await response.json()) as RagMatch[];
 }

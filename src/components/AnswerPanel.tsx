@@ -79,9 +79,14 @@ function sourceCategory(source: Source): "research" | "guidance" {
 
 function studyType(source: Source): string {
   const evidence = evidenceSource(source);
-  const text = `${evidence.studyType ?? ""} ${evidence.evidenceType ?? ""} ${source.title} ${source.description}`.toLowerCase();
+  const text =
+    `${evidence.studyType ?? ""} ${evidence.evidenceType ?? ""} ${source.title} ${source.description}`.toLowerCase();
 
-  if (text.includes("systematic review") || text.includes("meta-analysis") || text.includes("meta analysis")) {
+  if (
+    text.includes("systematic review") ||
+    text.includes("meta-analysis") ||
+    text.includes("meta analysis")
+  ) {
     return "systematic-review";
   }
   if (
@@ -242,9 +247,16 @@ export function AnswerPanel({ answer, question }: { answer: AssistantAnswer; que
     });
   }, [answer.sources, filter, sort]);
 
-  const sourceEntries = useMemo(() => answer.sources.map((source, index) => ({ source, index })), [answer.sources]);
-  const selectedSourceEntries = sourceEntries.filter(({ index }) => selectedSources.includes(index));
-  const selectedComparisonSources = selectedSourceEntries.map(({ source }) => source as EvidenceSource);
+  const sourceEntries = useMemo(
+    () => answer.sources.map((source, index) => ({ source, index })),
+    [answer.sources],
+  );
+  const selectedSourceEntries = sourceEntries.filter(({ index }) =>
+    selectedSources.includes(index),
+  );
+  const selectedComparisonSources = selectedSourceEntries.map(
+    ({ source }) => source as EvidenceSource,
+  );
 
   const researchSources = filteredSources.filter((source) => sourceCategory(source) === "research");
   const guidanceSources = filteredSources.filter((source) => sourceCategory(source) === "guidance");
@@ -256,7 +268,10 @@ export function AnswerPanel({ answer, question }: { answer: AssistantAnswer; que
         const isSelected = selectedSources.includes(sourceIndex);
         const selectionDisabled = !isSelected && selectedSources.length >= 3;
         return (
-          <div key={source.url ?? source.title + sourceIndex} className="rounded-lg border border-border bg-card">
+          <div
+            key={source.url ?? source.title + sourceIndex}
+            className="rounded-lg border border-border bg-card"
+          >
             <div className="flex items-start gap-3 px-4 pt-3 sm:px-5">
               <input
                 type="checkbox"
@@ -266,18 +281,28 @@ export function AnswerPanel({ answer, question }: { answer: AssistantAnswer; que
                   setSelectedSources((current) =>
                     isSelected
                       ? current.filter((index) => index !== sourceIndex)
-                      : current.length < 3 ? [...current, sourceIndex] : current,
+                      : current.length < 3
+                        ? [...current, sourceIndex]
+                        : current,
                   );
                 }}
                 aria-label={"Select " + source.title + " for comparison"}
                 className="mt-1.5 size-4 shrink-0 accent-primary disabled:cursor-not-allowed disabled:opacity-40"
               />
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Compare source</p>
-                {selectionDisabled ? <p className="mt-0.5 text-[11px] text-muted-foreground">Maximum of 3 sources selected</p> : null}
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Compare source
+                </p>
+                {selectionDisabled ? (
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    Maximum of 3 sources selected
+                  </p>
+                ) : null}
               </div>
             </div>
-            <div className="px-1 pb-1"><SourceCard source={source} /></div>
+            <div className="px-1 pb-1">
+              <SourceCard source={source} />
+            </div>
           </div>
         );
       })}
@@ -288,7 +313,9 @@ export function AnswerPanel({ answer, question }: { answer: AssistantAnswer; que
     <article className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
       <header className="bg-surface px-5 py-5 sm:px-7">
         <p className="rule-label">Question</p>
-        <p className="mt-1.5 font-display text-xl leading-snug text-foreground sm:text-2xl">{question}</p>
+        <p className="mt-1.5 font-display text-xl leading-snug text-foreground sm:text-2xl">
+          {question}
+        </p>
         <p className="mt-2 text-xs text-muted-foreground">Topic: {answer.topic}</p>
       </header>
 
@@ -316,20 +343,47 @@ export function AnswerPanel({ answer, question }: { answer: AssistantAnswer; que
           filtered={filteredSources.length}
           filter={filter}
           sort={sort}
-          onFilterChange={(value) => { setFilter(value); setIsComparing(false); }}
-          onSortChange={(value) => { setSort(value); setIsComparing(false); }}
-          onReset={() => { setFilter("all"); setSort("relevance"); setIsComparing(false); }}
+          onFilterChange={(value) => {
+            setFilter(value);
+            setIsComparing(false);
+          }}
+          onSortChange={(value) => {
+            setSort(value);
+            setIsComparing(false);
+          }}
+          onReset={() => {
+            setFilter("all");
+            setSort("relevance");
+            setIsComparing(false);
+          }}
         />
 
         {selectedSources.length > 0 ? (
           <div className="mb-5 flex flex-col gap-3 rounded-lg border border-border bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm font-semibold text-foreground">{selectedSources.length} of 3 sources selected</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">Select 2–3 sources to compare their available metadata side by side.</p>
+              <p className="text-sm font-semibold text-foreground">
+                {selectedSources.length} of 3 sources selected
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Select 2–3 sources to compare their available metadata side by side.
+              </p>
             </div>
             <div className="flex gap-2">
-              <button type="button" onClick={() => setSelectedSources([])} className="rounded-md border border-border px-3 py-2 text-xs font-semibold text-foreground hover:bg-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">Clear</button>
-              <button type="button" disabled={selectedSources.length < 2} onClick={() => setIsComparing(true)} className="rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">Compare selected</button>
+              <button
+                type="button"
+                onClick={() => setSelectedSources([])}
+                className="rounded-md border border-border px-3 py-2 text-xs font-semibold text-foreground hover:bg-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                disabled={selectedSources.length < 2}
+                onClick={() => setIsComparing(true)}
+                className="rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              >
+                Compare selected
+              </button>
             </div>
           </div>
         ) : null}
@@ -338,14 +392,19 @@ export function AnswerPanel({ answer, question }: { answer: AssistantAnswer; que
           <EvidenceComparison
             sources={selectedComparisonSources}
             onClose={() => setIsComparing(false)}
-            onClear={() => { setSelectedSources([]); setIsComparing(false); }}
+            onClear={() => {
+              setSelectedSources([]);
+              setIsComparing(false);
+            }}
           />
         ) : null}
 
         {filteredSources.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border bg-surface px-4 py-6 text-center">
             <p className="text-sm font-medium text-foreground">No sources match this filter.</p>
-            <p className="mt-1 text-xs text-muted-foreground">Try another source type or reset the filters.</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Try another source type or reset the filters.
+            </p>
           </div>
         ) : (
           <>
@@ -353,7 +412,10 @@ export function AnswerPanel({ answer, question }: { answer: AssistantAnswer; que
               <div>
                 <div className="mb-3 flex items-baseline justify-between gap-3">
                   <h4 className="text-sm font-semibold text-foreground">
-                    Research evidence <span className="font-normal text-muted-foreground">({researchSources.length})</span>
+                    Research evidence{" "}
+                    <span className="font-normal text-muted-foreground">
+                      ({researchSources.length})
+                    </span>
                   </h4>
                   <span className="text-xs text-muted-foreground">Studies & papers</span>
                 </div>
@@ -365,7 +427,10 @@ export function AnswerPanel({ answer, question }: { answer: AssistantAnswer; que
               <div className={researchSources.length > 0 ? "mt-6" : ""}>
                 <div className="mb-3 flex items-baseline justify-between gap-3">
                   <h4 className="text-sm font-semibold text-foreground">
-                    Authoritative health guidance <span className="font-normal text-muted-foreground">({guidanceSources.length})</span>
+                    Authoritative health guidance{" "}
+                    <span className="font-normal text-muted-foreground">
+                      ({guidanceSources.length})
+                    </span>
                   </h4>
                   <span className="text-xs text-muted-foreground">Clinical information</span>
                 </div>

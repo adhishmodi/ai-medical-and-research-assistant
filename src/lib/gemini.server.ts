@@ -31,14 +31,7 @@ const RESPONSE_SCHEMA = {
       },
     },
   },
-  required: [
-    "topic",
-    "summary",
-    "keyInformation",
-    "considerations",
-    "whenToSeekCare",
-    "sources",
-  ],
+  required: ["topic", "summary", "keyInformation", "considerations", "whenToSeekCare", "sources"],
 };
 
 function getOutputText(payload: GeminiInteractionResponse): string | undefined {
@@ -84,7 +77,9 @@ async function requestGemini(
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => "");
-    const error = new Error(`Gemini Interactions API returned ${response.status}: ${errorBody}`) as Error & {
+    const error = new Error(
+      `Gemini Interactions API returned ${response.status}: ${errorBody}`,
+    ) as Error & {
       status?: number;
     };
     error.status = response.status;
@@ -95,7 +90,9 @@ async function requestGemini(
   const text = getOutputText(payload);
 
   if (!text) {
-    throw new Error(`Gemini Interactions API returned no model output (status: ${payload.status ?? "unknown"}).`);
+    throw new Error(
+      `Gemini Interactions API returned no model output (status: ${payload.status ?? "unknown"}).`,
+    );
   }
 
   return JSON.parse(text) as AssistantAnswer;

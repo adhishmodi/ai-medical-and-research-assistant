@@ -23,9 +23,7 @@ function categoryLabel(source: ComparisonSource): string {
 function studyTypeLabel(source: ComparisonSource): string {
   const value = source.studyType;
   if (!value) return "Not provided";
-  return value
-    .replace(/-/g, " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return value.replace(/-/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 export function EvidenceComparison({
@@ -80,7 +78,9 @@ export function EvidenceComparison({
                   key={source.url ?? source.title + index}
                   className="min-w-[240px] border-l border-border px-4 py-3 align-top sm:px-5"
                 >
-                  <p className="text-sm font-semibold leading-snug text-foreground">{source.title}</p>
+                  <p className="text-sm font-semibold leading-snug text-foreground">
+                    {source.title}
+                  </p>
                   {source.url ? (
                     <a
                       href={source.url}
@@ -91,7 +91,9 @@ export function EvidenceComparison({
                       View source
                     </a>
                   ) : (
-                    <span className="mt-2 block text-xs text-muted-foreground">Source link not available</span>
+                    <span className="mt-2 block text-xs text-muted-foreground">
+                      Source link not available
+                    </span>
                   )}
                 </th>
               ))}

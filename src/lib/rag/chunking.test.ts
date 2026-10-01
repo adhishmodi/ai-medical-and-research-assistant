@@ -10,7 +10,10 @@ describe("chunkText", () => {
   });
 
   it("splits long content into ordered chunks", () => {
-    const input = Array.from({ length: 20 }, (_, i) => `Sentence ${i} contains medical evidence.`).join(" ");
+    const input = Array.from(
+      { length: 20 },
+      (_, i) => `Sentence ${i} contains medical evidence.`,
+    ).join(" ");
     const chunks = chunkText(input, 120, 20);
     expect(chunks.length).toBeGreaterThan(1);
     expect(chunks.map((chunk) => chunk.index)).toEqual(chunks.map((_, index) => index));
@@ -18,7 +21,9 @@ describe("chunkText", () => {
   });
 
   it("rejects invalid overlap settings", () => {
-    expect(() => chunkText("medical text", 100, 100)).toThrow("Chunk overlap must be smaller than chunk size.");
+    expect(() => chunkText("medical text", 100, 100)).toThrow(
+      "Chunk overlap must be smaller than chunk size.",
+    );
   });
 
   it("returns no chunks for empty input", () => {

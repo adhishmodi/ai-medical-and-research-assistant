@@ -26,19 +26,14 @@ function stripHtml(value: string): string {
   return clean(value.replace(/<[^>]*>/g, " "));
 }
 
-function normalizeTrustedUrl(
-  url: string,
-  organization: "who" | "medlineplus",
-): string {
+function normalizeTrustedUrl(url: string, organization: "who" | "medlineplus"): string {
   const value = clean(decodeHtml(url));
   if (!value) return "";
 
   try {
     const parsed = new URL(
       value,
-      organization === "who"
-        ? "https://www.who.int"
-        : "https://medlineplus.gov",
+      organization === "who" ? "https://www.who.int" : "https://medlineplus.gov",
     );
 
     if (parsed.protocol !== "https:") return "";
@@ -46,8 +41,7 @@ function normalizeTrustedUrl(
     const allowed =
       organization === "who"
         ? parsed.hostname === "www.who.int" || parsed.hostname === "who.int"
-        : parsed.hostname === "medlineplus.gov" ||
-          parsed.hostname.endsWith(".nlm.nih.gov");
+        : parsed.hostname === "medlineplus.gov" || parsed.hostname.endsWith(".nlm.nih.gov");
 
     return allowed ? parsed.toString() : "";
   } catch {
@@ -55,10 +49,7 @@ function normalizeTrustedUrl(
   }
 }
 
-async function searchMedlinePlus(
-  query: string,
-  limit = 4,
-): Promise<TrustedSource[]> {
+async function searchMedlinePlus(query: string, limit = 4): Promise<TrustedSource[]> {
   const params = new URLSearchParams({
     db: "healthTopics",
     term: query,
@@ -78,15 +69,12 @@ async function searchMedlinePlus(
   }
 
   const xml = await response.text();
-  const docs = [
-    ...xml.matchAll(/<document[^>]*>([\s\S]*?)<\/document>/g),
-  ].slice(0, limit);
+  const docs = [...xml.matchAll(/<document[^>]*>([\s\S]*?)<\/document>/g)].slice(0, limit);
 
   return docs
     .map((match) => {
       const block = match[1];
-      const rawUrl =
-        match[0].match(/<document[^>]*\burl="([^"]+)"/)?.[1] ?? "";
+      const rawUrl = match[0].match(/<document[^>]*\burl="([^"]+)"/)?.[1] ?? "";
 
       const title = decodeHtml(
         clean(
@@ -95,13 +83,9 @@ async function searchMedlinePlus(
         ),
       );
 
-      const fullSummary = block.match(
-        /<content name="FullSummary">([\s\S]*?)<\/content>/,
-      )?.[1];
+      const fullSummary = block.match(/<content name="FullSummary">([\s\S]*?)<\/content>/)?.[1];
 
-      const shortSnippet = block.match(
-        /<content name="snippet">([\s\S]*?)<\/content>/,
-      )?.[1];
+      const shortSnippet = block.match(/<content name="snippet">([\s\S]*?)<\/content>/)?.[1];
 
       const snippet = stripHtml(
         decodeHtml(
@@ -124,10 +108,7 @@ async function searchMedlinePlus(
     .filter((source) => Boolean(source.url));
 }
 
-async function getWhoTopics(
-  query: string,
-  limit = 6,
-): Promise<TrustedSource[]> {
+async function getWhoTopics(query: string, limit = 6): Promise<TrustedSource[]> {
   const response = await fetchWithTimeout(
     "https://www.who.int/api/multimedias/healthtopics",
     {},
@@ -151,10 +132,7 @@ async function getWhoTopics(
   const all = (payload.value ?? [])
     .map((item) => {
       const title = clean(item.Title ?? "WHO Health Topic");
-      const url = normalizeTrustedUrl(
-        item.ItemDefaultUrl || item.ExternalURL || "",
-        "who",
-      );
+      const url = normalizeTrustedUrl(item.ItemDefaultUrl || item.ExternalURL || "", "who");
 
       return {
         title,
@@ -179,17 +157,10 @@ function scoreSource(source: TrustedSource, query: string): number {
 
   const haystack = (source.title + " " + source.description).toLowerCase();
 
-  return terms.reduce(
-    (score, term) => score + (haystack.includes(term) ? 1 : 0),
-    0,
-  );
+  return terms.reduce((score, term) => score + (haystack.includes(term) ? 1 : 0), 0);
 }
 
-function deduplicateAndRank(
-  sources: TrustedSource[],
-  query: string,
-  limit = 6,
-): TrustedSource[] {
+function deduplicateAndRank(sources: TrustedSource[], query: string, limit = 6): TrustedSource[] {
   const seen = new Set<string>();
 
   return sources
@@ -202,10 +173,7 @@ function deduplicateAndRank(
     .slice(0, limit);
 }
 
-export async function searchTrustedSources(
-  question: string,
-  limit = 6,
-): Promise<TrustedSource[]> {
+export async function searchTrustedSources(question: string, limit = 6): Promise<TrustedSource[]> {
   const results: TrustedSource[] = [];
 
   const [medlineResult, whoResult] = await Promise.allSettled([
@@ -215,31 +183,20 @@ export async function searchTrustedSources(
 
   if (medlineResult.status === "fulfilled") {
     results.push(...medlineResult.value);
-    console.info(
-      "MedlinePlus returned " + medlineResult.value.length + " trusted source(s).",
-    );
+    console.info("MedlinePlus returned " + medlineResult.value.length + " trusted source(s).");
   } else {
-    console.warn(
-      "MedlinePlus retrieval unavailable.",
-      medlineResult.reason,
-    );
+    console.warn("MedlinePlus retrieval unavailable.", medlineResult.reason);
   }
 
   if (whoResult.status === "fulfilled") {
     results.push(...whoResult.value);
-    console.info(
-      "WHO returned " + whoResult.value.length + " trusted source(s).",
-    );
+    console.info("WHO returned " + whoResult.value.length + " trusted source(s).");
   } else {
     console.warn("WHO retrieval unavailable.", whoResult.reason);
   }
 
   const ranked = deduplicateAndRank(results, question, limit);
-  console.info(
-    "Trusted-source retrieval returned " +
-      ranked.length +
-      " guidance source(s) total.",
-  );
+  console.info("Trusted-source retrieval returned " + ranked.length + " guidance source(s) total.");
 
   return ranked;
 }

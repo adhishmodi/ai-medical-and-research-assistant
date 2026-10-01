@@ -55,7 +55,10 @@ export async function generateGeminiInteraction(
   }
 
   const payload = (await response.json()) as InteractionResponse;
-  const text = payload.output_text || payload.steps?.find((s) => s.type === "model_output")?.content?.find((p) => p.type === "text")?.text;
+  const text =
+    payload.output_text ||
+    payload.steps?.find((s) => s.type === "model_output")?.content?.find((p) => p.type === "text")
+      ?.text;
   if (!text) throw new Error("Gemini API response did not contain model output text.");
   return JSON.parse(text) as AssistantAnswer;
 }

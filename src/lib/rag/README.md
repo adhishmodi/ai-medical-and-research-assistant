@@ -3,6 +3,7 @@
 Supabase Postgres + pgvector is the Phase 8 database and vector store.
 
 Flow:
+
 1. Discover candidate evidence from PubMed and trusted health sources.
 2. Normalize and chunk the retrieved source text.
 3. Generate 768-dimensional Gemini document embeddings.
@@ -14,6 +15,7 @@ Flow:
 RAG is optional until SUPABASE_URL and SUPABASE_SECRET_KEY are configured. Without them, the existing live retrieval path continues to work.
 
 Environment:
+
 - SUPABASE_URL
 - SUPABASE_SECRET_KEY
 - GEMINI_API_KEY

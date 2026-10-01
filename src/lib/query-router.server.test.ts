@@ -21,7 +21,9 @@ describe("classifyQuery", () => {
   });
 
   it("routes medication questions with safety-focused research", () => {
-    const route = classifyQuery("What are common side effects and interactions of this medication?");
+    const route = classifyQuery(
+      "What are common side effects and interactions of this medication?",
+    );
     expect(route.category).toBe("medication");
     expect(route.usePubMed).toBe(true);
     expect(route.useTrustedSources).toBe(true);

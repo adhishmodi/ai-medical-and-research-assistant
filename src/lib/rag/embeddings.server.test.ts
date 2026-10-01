@@ -36,10 +36,12 @@ describe("embedText", () => {
 
     const request = fetchMock.mock.calls[0]?.[1];
     expect(request?.method).toBe("POST");
-    expect(Object.fromEntries(new Headers(request?.headers))).toEqual(expect.objectContaining({
-      "content-type": "application/json",
-      "x-goog-api-key": "test-key",
-    }));
+    expect(Object.fromEntries(new Headers(request?.headers))).toEqual(
+      expect.objectContaining({
+        "content-type": "application/json",
+        "x-goog-api-key": "test-key",
+      }),
+    );
     expect(JSON.parse(String(request?.body))).toMatchObject({
       content: { parts: [{ text: "COPD research" }] },
       taskType: "RETRIEVAL_QUERY",
