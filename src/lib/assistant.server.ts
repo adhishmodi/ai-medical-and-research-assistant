@@ -27,22 +27,22 @@ function isValidAnswer(value: unknown): value is AssistantAnswer {
     if (!source || typeof source !== "object") return false;
     const s = source as Record<string, unknown>;
     return (
-      typeof s.title === "string" &&
-      typeof s.organization === "string" &&
-      typeof s.description === "string" &&
-      typeof s.url === "string"
+      typeof s["title"] === "string" &&
+      typeof s["organization"] === "string" &&
+      typeof s["description"] === "string" &&
+      typeof s["url"] === "string"
     );
   });
 
   return (
-    typeof a.topic === "string" &&
-    typeof a.summary === "string" &&
-    Array.isArray(a.keyInformation) &&
-    a.keyInformation.every((x) => typeof x === "string") &&
-    Array.isArray(a.considerations) &&
-    a.considerations.every((x) => typeof x === "string") &&
-    Array.isArray(a.whenToSeekCare) &&
-    a.whenToSeekCare.every((x) => typeof x === "string") &&
+    typeof a["topic"] === "string" &&
+    typeof a["summary"] === "string" &&
+    Array.isArray(a["keyInformation"]) &&
+    a["keyInformation"].every((x) => typeof x === "string") &&
+    Array.isArray(a["considerations"]) &&
+    a["considerations"].every((x) => typeof x === "string") &&
+    Array.isArray(a["whenToSeekCare"]) &&
+    a["whenToSeekCare"].every((x) => typeof x === "string") &&
     hasValidSources
   );
 }
