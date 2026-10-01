@@ -76,3 +76,14 @@ describe("backend health status", () => {
     expect(health.configuration.rag).toBe("configured");
   });
 });
+
+
+it("reports incompatible embedding configuration as invalid RAG state", () => {
+  setCompleteEnvironment();
+  process.env["GEMINI_EMBEDDING_DIMENSIONS"] = "1536";
+
+  const health = getBackendHealth();
+
+  expect(health.ready).toBe(false);
+  expect(health.configuration.rag).toBe("invalid");
+});
