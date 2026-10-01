@@ -33,17 +33,18 @@ describe("matchMedicalChunks", () => {
     const matches = await matchMedicalChunks([1, 0, 0], 0.4, 8);
 
     expect(matches[0]?.similarity).toBe(0.91);
+    const request = fetchMock.mock.calls[0]?.[1];
     expect(fetchMock).toHaveBeenCalledWith(
       "https://example.supabase.co/rest/v1/rpc/match_medical_chunks",
       expect.objectContaining({
         method: "POST",
-        headers: expect.objectContaining({
-          apikey: "test-secret",
-          Authorization: "Bearer test-secret",
-        }),
       }),
     );
-    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+    expect(Object.fromEntries(new Headers(request?.headers))).toEqual(expect.objectContaining({
+      apikey: "test-secret",
+      authorization: "Bearer test-secret",
+    }));
+    expect(JSON.parse(String(request?.body))).toEqual({
       query_embedding: [1, 0, 0],
       match_threshold: 0.4,
       match_count: 8,
