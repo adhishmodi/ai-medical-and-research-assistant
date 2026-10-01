@@ -123,11 +123,17 @@ export async function searchPubMed(question: string, limit = 5): Promise<PubMedA
   if (!fetchResponse.ok) throw new Error(`PubMed fetch returned ${fetchResponse.status}`);
   const xml = await fetchResponse.text();
 
+  const articlesByPmid = new Map<string, string>();
+  for (const blockMatch of xml.matchAll(/<PubmedArticle>[\\s\\S]*?<\\/PubmedArticle>/g)) {
+    const block = blockMatch[0] ?? "";
+    const blockPmid = block.match(/<PMID[^>]*>(\\d+)<\\/PMID>/)?.[1];
+    if (blockPmid) {
+      articlesByPmid.set(blockPmid, block);
+    }
+  }
+
   return ids.map((pmid) => {
-    const block =
-      xml.match(
-        new RegExp(`<PubmedArticle>[\\s\\S]*?<PMID[^>]*>${pmid}</PMID>[\\s\\S]*?</PubmedArticle>`),
-      )?.[0] ?? "";
+    const block = articlesByPmid.get(pmid) ?? "";
     const title = decodeXml(
       clean(
         block.match(/<ArticleTitle>([\s\S]*?)<\/ArticleTitle>/)?.[1]?.replace(/<[^>]+>/g, " ") ??
