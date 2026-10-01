@@ -95,7 +95,7 @@ function classifyEvidence(studyType: string): { normalized: string; level: Evide
 }
 
 function mergeRetrievedSources(answer: AssistantAnswer, articles: PubMedArticle[], trusted: TrustedSource[], question: string): AssistantAnswer {
-  const retrieved: Source[] = articles.map((article) => {
+  const retrieved = articles.map<Source>((article): Source => {
     const classification = classifyEvidence(article.studyType);
     return {
       title: article.title,
