@@ -1,143 +1,160 @@
 # AI Medical & Research Assistant
 
-An educational web app that lets users ask medical and biomedical research
-questions in plain language and get back a structured, source-referenced
-explanation.
+An educational full-stack web application for exploring medical and biomedical questions with evidence-aware AI responses.
 
-> ⚠️ **Educational use only.** This tool does not diagnose conditions,
-> interpret personal test results, or recommend medication. It is not a
-> substitute for professional medical advice — see the in-app safety notice
-> and [PROJECT_SPEC.md](./PROJECT_SPEC.md) for the full intent behind it.
+> **Educational use only.** The application does not diagnose conditions, interpret personal test results, or prescribe/change medication. It is not a substitute for professional medical care.
 
-**Status: work in progress.** The core flow (ask → AI answer → structured
-display) is working end to end. See [What's next](#whats-next) for what's
-still planned.
+## Current architecture
 
-## What works right now
+~~~text
+Browser
+  │
+  ▼
+TanStack Start server function
+  │
+  ├─ Query router
+  │    ├─ general medical
+  │    ├─ research
+  │    ├─ medication
+  │    ├─ urgent safety
+  │    └─ non-medical
+  ├─ PubMed retrieval
+  ├─ WHO + MedlinePlus retrieval
+  ├─ Optional Supabase pgvector RAG
+  ├─ Server-side AI provider chain
+  │    ├─ Gemini
+  │    ├─ OpenAI
+  │    ├─ Anthropic
+  │    └─ Groq
+  └─ Structured response validation + grounded sources
+~~~
 
-- A question form where the user types a medical/biomedical question and
-  clicks **Ask Assistant**, with input validation and a "clear" action.
-- The question is sent to an AI model (Anthropic's Claude) through a
-  server-side function — the API key is never exposed to the browser.
-- The model is constrained by a dedicated system prompt that requires it to:
-  - give general educational information, not a diagnosis
-  - never claim certainty about an individual having a disease
-  - never prescribe or advise starting/stopping/changing medication
-  - separate well-established facts from uncertainty
-  - avoid unsupported claims and never invent citations
-  - point urgent-sounding situations toward professional/emergency care
-  - explain plainly when a question can't be safely answered
-- Answers render in a consistent structure: **Summary → Key information →
-  Important considerations → When to seek medical care → Sources**.
-- A fixed **safety disclaimer** is always shown beneath every answer,
-  independent of what the model returns.
-- Loading state (skeleton UI) while waiting on the API, and a graceful error
-  state with a "try again" action if the request fails.
+The browser never receives server-side API keys. AI-generated citation URLs are not treated as verified: displayed sources come from application retrieval or the curated offline fallback.
 
 ## Tech stack
 
-- **[TanStack Start](https://tanstack.com/start)** — full-stack React
-  framework (SSR + file-based routing) built on **TanStack Router** and
-  **Vite**
-- **TypeScript**
-- **Tailwind CSS v4** for styling
-- **[shadcn/ui](https://ui.shadcn.com/)** components (Radix-based primitives)
-- **Anthropic API** (Claude) for generating answers, called only from a
-  server function
+- TanStack Start + TanStack Router
+- React 19 + TypeScript
+- Vite + Nitro
+- Tailwind CSS v4
+- Radix/shadcn-style UI components
+- PubMed / NCBI retrieval
+- WHO and MedlinePlus retrieval
+- Gemini structured generation and embeddings
+- Optional Supabase PostgreSQL + pgvector
+- Vitest + ESLint + Prettier
+- Vercel-compatible Nitro deployment
 
 ## Project structure
 
-```
+~~~text
 src/
-├─ routes/
-│  ├─ index.tsx          # Main page — question form, loading/error states, answer
-│  └─ __root.tsx          # App shell, <head> tags, error/404 pages
-├─ components/
-│  ├─ QuestionForm.tsx    # Question input + "Ask Assistant" button
-│  ├─ AnswerPanel.tsx     # Renders the structured answer + loading skeleton
-│  ├─ SourceCard.tsx      # One source citation card
-│  ├─ SafetyNotice.tsx    # The fixed safety disclaimer
-│  └─ ui/                 # Generic shadcn/ui components (buttons, cards, etc.)
+├─ components/                 # UI and evidence/report presentation
+├─ data/mockResponses.ts      # Curated offline fallback + response types
 ├─ lib/
-│  └─ assistant.server.ts # Server-only function + system prompt that calls the Anthropic API
-├─ data/
-│  └─ mockResponses.ts    # Types, example questions, and the original mock
-│                          # answer generator (now unused, kept as reference)
-└─ router.tsx              # Router + React Query client setup
-```
+│  ├─ ai/providers.server.ts   # AI provider chain
+│  ├─ assistant.server.ts      # Main server function and safety/grounding logic
+│  ├─ pubmed.server.ts         # PubMed retrieval
+│  ├─ trusted-sources.server.ts# WHO / MedlinePlus retrieval
+│  ├─ query-router.server.ts   # Query classification
+│  └─ rag/                     # Embedding, chunking and pgvector retrieval
+├─ routes/
+│  ├─ __root.tsx
+│  ├─ index.tsx
+│  └─ api/health.ts            # Backend readiness endpoint
+├─ router.tsx
+├─ server.ts
+└─ start.ts
 
-## Getting started
+supabase/migrations/           # pgvector schema + similarity RPC
+vite.config.ts                 # TanStack Start + Nitro + Tailwind + React
+vercel.json                    # Vercel framework declaration
+~~~
 
-You'll need [Node.js](https://nodejs.org/) (or [Bun](https://bun.sh/), which
-this project also supports) and an [Anthropic API key](https://console.anthropic.com/).
+## Local development
 
-```bash
+Requirements: Node.js 20+ is recommended.
+
+~~~bash
 git clone https://github.com/adhishmodi/ai-medical-and-research-assistant.git
 cd ai-medical-and-research-assistant
-npm i
-```
+npm install
+~~~
 
-Copy the example env file and add your key:
+Create a local environment file:
 
-```bash
+~~~bash
 cp .env.example .env
-```
+~~~
 
-```
-# .env
-ANTHROPIC_API_KEY=sk-ant-...
-```
+At minimum, configure:
 
-This variable is read only on the server (`src/lib/assistant.server.ts`) and
-is never bundled into client-side code — do not prefix it with `VITE_`, and
-never commit your real `.env` file.
+~~~env
+GEMINI_API_KEY=your_server_side_key
+~~~
 
-Then start the dev server:
+For RAG, also configure:
 
-```bash
+~~~env
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SECRET_KEY=your_server_side_secret_key
+~~~
+
+Optional provider keys are documented in .env.example.
+
+Start development:
+
+~~~bash
 npm run dev
-```
+~~~
 
-## How a request flows
+Quality checks:
 
-```
-User types a question
-   → QuestionForm (client)
-   → index.tsx validates it, shows loading state
-   → askAssistant() server function call (RPC, no key on the client)
-   → src/lib/assistant.server.ts calls the Anthropic API with ANTHROPIC_API_KEY
-   → Model returns a structured JSON answer
-   → Server validates the shape, or returns a friendly error on failure
-   → index.tsx renders AnswerPanel (or the "try again" error state)
-```
+~~~bash
+npm run lint
+npm test
+npm run build
+~~~
 
-## What's next
+npm run build performs both the Vite production build and a strict TypeScript check.
 
-Nothing below is implemented yet — this is the plan, not a changelog:
+## Backend health
 
-- **Source verification** — the model is instructed never to invent
-  citations, but nothing currently checks its sources against a real
-  database or link-checker. A verification step (or a curated source list
-  per topic) would make citations more trustworthy.
-- **Rate limiting / abuse protection** on the server function, since it's a
-  public endpoint that spends API credits.
-- **Automated tests** for `assistant.server.ts` (response parsing, error
-  handling) and for the question-validation logic.
-- **Conversation history / follow-up questions** — right now every question
-  is a fresh, stateless request with no memory of prior turns.
-- **Better error messages** distinguishing network failures, invalid API
-  keys, and malformed model output, rather than one generic message.
-- **Deployment** — picking and configuring a hosting target (the project is
-  already set up for Cloudflare via Nitro, but this hasn't been deployed
-  anywhere yet).
-- **Accessibility and mobile polish** pass on the existing UI.
-- **Retiring `mockResponses.ts`'s `getMockAnswer`** once the real API path
-  is trusted, or repurposing it as an explicit offline/demo mode.
+Once running, the readiness endpoint is:
 
-## Notes
+~~~text
+GET /api/health
+~~~
 
-- `src/data/mockResponses.ts` still contains the original hardcoded demo
-  answers used before the real API was connected. It's no longer called by
-  the app but is kept as a reference / potential offline fallback.
-- See [PROJECT_SPEC.md](./PROJECT_SPEC.md) for the original design brief and
-  [AGENTS.md](./AGENTS.md) for AI-assistant-specific project conventions.
+It reports configuration status without exposing secret values. A fully configured backend returns HTTP 200; missing required backend configuration returns HTTP 503.
+
+## RAG
+
+The Supabase migration creates:
+
+- medical_documents
+- medical_chunks
+- pgvector HNSW indexing
+- match_medical_chunks cosine-similarity RPC
+
+Embeddings use gemini-embedding-001 with 768 dimensions by default. The server uses the secret Supabase key and keeps the RAG tables protected by RLS.
+
+## Safety and grounding
+
+The server:
+
+- validates and normalizes incoming questions;
+- routes urgent and medication queries through safety-focused instructions;
+- retrieves authoritative sources before generation;
+- distinguishes research evidence from health guidance;
+- validates the model response shape;
+- never exposes model-generated URLs as verified citations;
+- falls back to curated educational responses if no AI provider is available.
+
+This is an educational research assistant, not a clinical decision system.
+
+## Deployment
+
+The project is configured for Vercel/TanStack Start through Nitro. Add server-side environment variables in the hosting provider; do not prefix secrets with VITE_.
+
+See BACKEND.md for the backend contract and environment details.
