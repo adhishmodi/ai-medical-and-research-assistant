@@ -32,9 +32,14 @@ async function indexDocument(input: {
   title: string; description: string; publication_year?: string; study_type?: string; content: string;
 }): Promise<void> {
   const document = await upsertMedicalDocument({
-    source_url: input.source_url, source_type: input.source_type, organization: input.organization,
-    title: input.title, description: input.description, publication_year: input.publication_year,
-    study_type: input.study_type, content_hash: await hashContent(input.content),
+    source_url: input.source_url,
+    source_type: input.source_type,
+    organization: input.organization,
+    title: input.title,
+    description: input.description,
+    ...(input.publication_year ? { publication_year: input.publication_year } : {}),
+    ...(input.study_type ? { study_type: input.study_type } : {}),
+    content_hash: await hashContent(input.content),
   });
   for (const chunk of chunkText(input.content)) {
     const embedding = await embedText(chunk.content, "RETRIEVAL_DOCUMENT");
