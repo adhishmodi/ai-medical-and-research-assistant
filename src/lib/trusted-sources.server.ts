@@ -84,7 +84,7 @@ async function searchMedlinePlus(
 
   return docs
     .map((match) => {
-      const block = match[1];
+      const block = match[1] ?? "";
       const rawUrl =
         match[0].match(/<document[^>]*\burl="([^"]+)"/)?.[1] ?? "";
 
