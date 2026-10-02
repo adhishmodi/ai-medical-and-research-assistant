@@ -71,7 +71,9 @@ async function indexDocument(input: {
     await deleteMedicalChunks(document.id);
   }
 
-  for (const chunk of chunkText(input.content)) {
+  const chunks = chunkText(input.content);
+
+  for (const chunk of chunks) {
     const embedding = await embedText(chunk.content, "RETRIEVAL_DOCUMENT");
     await upsertMedicalChunk({
       document_id: document.id,
@@ -81,9 +83,7 @@ async function indexDocument(input: {
     });
   }
 
-  console.info(
-    "RAG indexed " + chunkText(input.content).length + " chunk(s): " + input.title,
-  );
+  console.info("RAG indexed " + chunks.length + " chunk(s): " + input.title);
 }
 
 export async function indexRetrievedEvidence(
@@ -132,5 +132,19 @@ export async function indexRetrievedEvidence(
 export async function retrieveRagEvidence(question: string, count = 8): Promise<RagMatch[]> {
   if (!isRagDatabaseConfigured()) return [];
   const embedding = await embedText(question, "RETRIEVAL_QUERY");
-  return matchMedicalChunks(embedding, 0.4, count);
+  const candidates = await matchMedicalChunks(embedding, 0.4, Math.min(count * 2, 20));
+  const chunksBySource = new Map<string, number>();
+  const selected: RagMatch[] = [];
+
+  for (const match of candidates) {
+    const sourceCount = chunksBySource.get(match.source_url) ?? 0;
+    if (sourceCount >= 2) continue;
+
+    chunksBySource.set(match.source_url, sourceCount + 1);
+    selected.push(match);
+
+    if (selected.length >= count) break;
+  }
+
+  return selected;
 }
