@@ -21,6 +21,44 @@ async function request(path: string, init: RequestInit = {}): Promise<Response> 
   return fetch(config.url + "/rest/v1/" + path, { ...init, headers });
 }
 
+export type MedicalDocument = {
+  id: number;
+  source_url: string;
+  content_hash: string;
+};
+
+export async function getMedicalDocumentByUrl(
+  sourceUrl: string,
+): Promise<MedicalDocument | null> {
+  const params = new URLSearchParams({
+    select: "id,source_url,content_hash",
+    source_url: "eq." + sourceUrl,
+    limit: "1",
+  });
+  const response = await request("medical_documents?" + params);
+  if (!response.ok)
+    throw new Error(
+      "Supabase document lookup returned " +
+        response.status +
+        ": " +
+        (await response.text().catch(() => "")),
+    );
+  const rows = (await response.json()) as MedicalDocument[];
+  return rows[0] ?? null;
+}
+
+export async function deleteMedicalChunks(documentId: number): Promise<void> {
+  const params = new URLSearchParams({ document_id: "eq." + documentId });
+  const response = await request("medical_chunks?" + params, { method: "DELETE" });
+  if (!response.ok)
+    throw new Error(
+      "Supabase chunk cleanup returned " +
+        response.status +
+        ": " +
+        (await response.text().catch(() => "")),
+    );
+}
+
 export async function upsertMedicalDocument(row: {
   source_url: string;
   source_type: "pubmed" | "guidance";
