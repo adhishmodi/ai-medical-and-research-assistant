@@ -252,13 +252,15 @@ export const askAssistant = createServerFn({ method: "POST" })
     let ragEvidence: Awaited<ReturnType<typeof retrieveRagEvidence>> = [];
     if (isRagDatabaseConfigured()) {
       try {
+        if (evidence.length > 0 || trusted.length > 0) {
+          await indexRetrievedEvidence(evidence, trusted);
+          console.info(
+            `RAG indexed ${evidence.length + trusted.length} newly retrieved source candidate(s).`,
+          );
+        }
+
         ragEvidence = await retrieveRagEvidence(question, 8);
         console.info(`RAG retrieved ${ragEvidence.length} semantic chunk(s).`);
-        if (ragEvidence.length === 0 && (evidence.length > 0 || trusted.length > 0)) {
-          await indexRetrievedEvidence(evidence, trusted);
-          ragEvidence = await retrieveRagEvidence(question, 8);
-          console.info(`RAG seeded and retrieved ${ragEvidence.length} semantic chunk(s).`);
-        }
       } catch (error) {
         console.warn("RAG retrieval unavailable; continuing with live evidence.", error);
       }
