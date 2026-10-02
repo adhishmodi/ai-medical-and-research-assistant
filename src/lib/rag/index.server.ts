@@ -3,6 +3,8 @@ import type { TrustedSource } from "@/lib/trusted-sources.server";
 import { embedText } from "./embeddings.server";
 import { chunkText } from "./chunking";
 import {
+  deleteMedicalChunks,
+  getMedicalDocumentByUrl,
   isRagDatabaseConfigured,
   matchMedicalChunks,
   upsertMedicalChunk,
@@ -46,6 +48,14 @@ async function indexDocument(input: {
   study_type?: string;
   content: string;
 }): Promise<void> {
+  const contentHash = await hashContent(input.content);
+  const existing = await getMedicalDocumentByUrl(input.source_url);
+
+  if (existing?.content_hash === contentHash) {
+    console.info("RAG skipped unchanged source: " + input.source_url);
+    return;
+  }
+
   const document = await upsertMedicalDocument({
     source_url: input.source_url,
     source_type: input.source_type,
@@ -54,8 +64,13 @@ async function indexDocument(input: {
     description: input.description,
     ...(input.publication_year ? { publication_year: input.publication_year } : {}),
     ...(input.study_type ? { study_type: input.study_type } : {}),
-    content_hash: await hashContent(input.content),
+    content_hash: contentHash,
   });
+
+  if (existing) {
+    await deleteMedicalChunks(document.id);
+  }
+
   for (const chunk of chunkText(input.content)) {
     const embedding = await embedText(chunk.content, "RETRIEVAL_DOCUMENT");
     await upsertMedicalChunk({
@@ -65,6 +80,10 @@ async function indexDocument(input: {
       embedding,
     });
   }
+
+  console.info(
+    "RAG indexed " + chunkText(input.content).length + " chunk(s): " + input.title,
+  );
 }
 
 export async function indexRetrievedEvidence(
